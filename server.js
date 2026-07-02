@@ -56,15 +56,15 @@ app.post('/api/members', async (req, res) => {
 });
 
 app.patch('/api/members/:id', (req, res) => {
-  const member = store.getMember(req.params.id);
-  if (!member) return res.status(404).json({ error: 'Member not found.' });
   const { name, email, phone, notifyEmail, notifySms } = req.body ?? {};
-  if (name !== undefined) member.name = String(name).trim() || member.name;
-  if (email !== undefined) member.email = String(email).trim();
-  if (phone !== undefined) member.phone = String(phone).trim();
-  if (notifyEmail !== undefined) member.notifyEmail = Boolean(notifyEmail);
-  if (notifySms !== undefined) member.notifySms = Boolean(notifySms);
-  store.save();
+  const member = store.updateMember(req.params.id, {
+    name,
+    email,
+    phone,
+    notifyEmail,
+    notifySms,
+  });
+  if (!member) return res.status(404).json({ error: 'Member not found.' });
   res.json(member);
 });
 
@@ -78,20 +78,16 @@ app.delete('/api/members/:id', (req, res) => {
 
 app.patch('/api/settings', (req, res) => {
   const { timezone, reminderHours } = req.body ?? {};
-  if (timezone !== undefined) {
-    if (!isValidTimeZone(timezone)) {
-      return res.status(400).json({ error: `"${timezone}" is not a valid IANA timezone.` });
-    }
-    store.data.settings.timezone = timezone;
+  if (timezone !== undefined && !isValidTimeZone(timezone)) {
+    return res.status(400).json({ error: `"${timezone}" is not a valid IANA timezone.` });
   }
-  if (reminderHours !== undefined) {
-    const hours = [...new Set(reminderHours.map(Number))]
-      .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
-      .sort((a, b) => a - b);
-    store.data.settings.reminderHours = hours;
-  }
-  store.save();
-  res.json(store.data.settings);
+  const hours =
+    reminderHours === undefined
+      ? undefined
+      : [...new Set(reminderHours.map(Number))]
+          .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
+          .sort((a, b) => a - b);
+  res.json(store.updateSettings({ timezone, reminderHours: hours }));
 });
 
 app.post('/api/remind-now', async (req, res) => {

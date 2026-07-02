@@ -1,0 +1,9 @@
+{
+  "timezone": "America/Chicago",
+  "reminderHours": [
+    12,
+    18,
+    21
+  ],
+  "members": []
+}

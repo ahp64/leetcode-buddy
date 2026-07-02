@@ -1,0 +1,72 @@
+# Browser UI for managing the group: Actions tab → "Manage buddies" →
+# "Run workflow". Only people with write access to the repo can run it.
+# Validates the username against LeetCode, commits the change to config.json,
+# then redeploys the dashboard.
+#
+# Deliberately only takes public-safe fields (username + display name) —
+# workflow inputs are publicly visible on a public repo. Emails/phones go in
+# the CONTACTS secret instead (Settings → Secrets → Actions).
+name: Manage buddies
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Add or remove?
+        type: choice
+        options: [add, remove]
+        default: add
+      leetcode_username:
+        description: LeetCode username
+        required: true
+      display_name:
+        description: Display name (optional, defaults to username)
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Apply change
+        env:
+          ACTION: ${{ inputs.action }}
+          USERNAME: ${{ inputs.leetcode_username }}
+          DISPLAY_NAME: ${{ inputs.display_name }}
+        run: node manage.js "$ACTION" "$USERNAME" $DISPLAY_NAME
+
+      - name: Commit config.json
+        env:
+          ACTION: ${{ inputs.action }}
+          USERNAME: ${{ inputs.leetcode_username }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config.json
+          if git diff --cached --quiet; then
+            echo "No change to commit."
+          else
+            git commit -m "Streak roster: $ACTION $USERNAME"
+            git push
+          fi
+
+  publish:
+    needs: manage
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/streak.yml
+    secrets: inherit

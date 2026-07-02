@@ -14,6 +14,10 @@ const status = await getGroupStatus(store, { fresh: true });
 const publicStatus = {
   readOnly: true,
   generatedAt: new Date().toISOString(),
+  // Lets the static dashboard link to the GitHub forms that manage the group.
+  repoUrl: process.env.GITHUB_REPOSITORY
+    ? `https://github.com/${process.env.GITHUB_REPOSITORY}`
+    : null,
   today: status.today,
   timezone: status.settings.timezone,
   streak: status.streak,

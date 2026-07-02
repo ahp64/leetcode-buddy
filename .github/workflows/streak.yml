@@ -1,7 +1,10 @@
 # Hourly streak check: rebuilds the GitHub Pages dashboard every run, and
 # sends reminders when the current hour (in the group's timezone) is one of
-# the configured reminder hours — remind.js --if-scheduled makes that call,
-# so UTC/DST conversion never needs to live in this file.
+# the reminder hours in config.json — remind.js --if-scheduled makes that
+# call, so UTC/DST conversion never needs to live in this file.
+#
+# Also callable from manage.yml (workflow_call) so the dashboard refreshes
+# immediately after adding/removing a buddy.
 #
 # Caveats of GitHub's scheduler: runs can lag the cron time by ~15 minutes,
 # and schedules are paused automatically after 60 days without repo activity
@@ -12,6 +15,7 @@ on:
   schedule:
     - cron: '7 * * * *'
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -29,7 +33,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Always build from latest main: when called from manage.yml, the
+      # triggering sha predates the config.json commit that run just pushed.
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -37,17 +45,18 @@ jobs:
 
       - run: npm ci
 
-      # Member config never lives in the repo — it comes from the BUDDY_CONFIG
-      # secret, uploaded from your machine with `npm run sync-config`.
-      - name: Restore config from secret
+      # Members/settings come from the committed config.json. Contact info
+      # (emails/phones/toggles) never enters the repo — it comes from the
+      # CONTACTS secret, editable under Settings → Secrets → Actions.
+      - name: Restore contacts from secret
         env:
-          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
+          CONTACTS: ${{ secrets.CONTACTS }}
         run: |
-          if [ -z "$BUDDY_CONFIG" ]; then
-            echo "::notice::No BUDDY_CONFIG secret set — dashboard will be empty. Add members in the local UI, then run 'npm run sync-config'."
+          mkdir -p data
+          if [ -z "$CONTACTS" ]; then
+            echo "::notice::No CONTACTS secret set — reminders will log to this console instead of emailing/texting. See README."
           else
-            mkdir -p data
-            printf '%s' "$BUDDY_CONFIG" > data/db.json
+            printf '%s' "$CONTACTS" > data/contacts.json
           fi
 
       - name: Send reminders (only at configured local hours)

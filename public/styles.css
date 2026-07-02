@@ -124,4 +124,6 @@ button.secondary { background: transparent; color: var(--accent); border: 1px so
 .form-error.ok { color: var(--good); }
 
 .hint { color: var(--muted); font-size: 14px; }
+.hint a { color: var(--accent); text-decoration: none; }
+.hint a:hover { text-decoration: underline; }
 .channel-status { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

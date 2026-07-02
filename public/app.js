@@ -76,14 +76,21 @@ function render(s) {
   $('today-date').textContent = `${s.today} · ${s.settings.timezone}`;
   $('solo-hint').hidden = staticMode || s.members.length !== 1;
 
-  // Read-only mirror on GitHub Pages: no management UI, show data age.
+  // On GitHub Pages there's no API to write to — management happens through
+  // GitHub itself (Actions form + secrets), so link there instead.
   $('add-section').hidden = staticMode;
   $('settings-section').hidden = staticMode;
   const note = $('readonly-note');
   note.hidden = !staticMode;
   if (staticMode && s.generatedAt) {
     const mins = Math.max(0, Math.round((Date.now() - new Date(s.generatedAt)) / 60000));
-    note.textContent = `Read-only mirror — updated ${mins < 1 ? 'just now' : mins + ' min ago'}. Run the app locally to manage members.`;
+    const age = mins < 1 ? 'just now' : `${mins} min ago`;
+    const links = s.repoUrl
+      ? ` · <a href="${s.repoUrl}/actions/workflows/manage.yml" target="_blank" rel="noopener">➕ add/remove people</a>` +
+        ` · <a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">🔔 reminder contacts</a>` +
+        ` · <a href="${s.repoUrl}/edit/main/config.json" target="_blank" rel="noopener">⚙️ hours/timezone</a>`
+      : '';
+    note.innerHTML = `Updated ${age}${links}`;
   }
 
   // Member cards
