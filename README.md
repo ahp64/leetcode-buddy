@@ -75,8 +75,21 @@ Now open your dashboard URL from Step 2 — you should see everyone listed
 with today's status. It refreshes itself every hour. (Want it fresher right
 now? Actions → **Streak check & dashboard** → Run workflow.)
 
-The dashboard itself has links back to these GitHub forms, so you can manage
-everything from the page you'll actually be looking at.
+**Prefer adding people on the dashboard page itself?** You can, after a
+one-time connection so GitHub knows it's you and not a random visitor:
+
+1. On the dashboard, the "Add a person" box asks for a GitHub token. Click
+   the link there (or go to GitHub → your profile picture → Settings →
+   Developer settings → Personal access tokens → **Fine-grained tokens** →
+   Generate new token).
+2. Under "Repository access" choose **Only select repositories** and pick
+   your streak repo. Under "Permissions → Repository permissions", set
+   **Actions** to **Read and write**. Generate, copy the `github_pat_…`
+   value, and paste it into the dashboard.
+
+The token is saved only in that browser, and the page then adds/removes
+people for you (it drives the same "Manage buddies" workflow behind the
+scenes — changes take about a minute to apply).
 
 ### Step 4 — Turn on email/text reminders (optional but recommended)
 

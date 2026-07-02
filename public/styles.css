@@ -126,4 +126,13 @@ button.secondary { background: transparent; color: var(--accent); border: 1px so
 .hint { color: var(--muted); font-size: 14px; }
 .hint a { color: var(--accent); text-decoration: none; }
 .hint a:hover { text-decoration: underline; }
+
+/* Field visibility per mode: local server vs static GitHub Pages mirror */
+.static-only { display: none; }
+body.static .local-only { display: none; }
+body.static .static-only { display: block; }
+
+#connect-card { margin-bottom: 12px; }
+#connect-card label { margin: 12px 0; }
+.form-error.progress { color: var(--accent); }
 .channel-status { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

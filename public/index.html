@@ -29,6 +29,22 @@
 
     <section id="add-section">
       <h2>Add a person</h2>
+      <div class="card" id="connect-card" hidden>
+        <p class="hint">
+          To add or remove people right from this page, connect it to your
+          GitHub repo once: create a
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>
+          with access to <em>only this repository</em> and the
+          <strong>Actions</strong> repository permission set to
+          <strong>Read and write</strong>, then paste it here. It is stored
+          only in this browser.
+        </p>
+        <label>GitHub token
+          <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
+        </label>
+        <button id="token-save">Connect</button>
+        <p class="form-error" id="token-error" hidden></p>
+      </div>
       <form id="add-form" class="card">
         <div class="grid">
           <label>LeetCode username *
@@ -37,20 +53,25 @@
           <label>Display name
             <input name="name" placeholder="defaults to username" autocomplete="off" />
           </label>
-          <label>Email
+          <label class="local-only">Email
             <input name="email" type="email" placeholder="for email reminders" />
           </label>
-          <label>Phone
+          <label class="local-only">Phone
             <input name="phone" type="tel" placeholder="+1555… for text reminders" />
           </label>
         </div>
-        <div class="toggles">
+        <div class="toggles local-only">
           <label class="toggle"><input type="checkbox" name="notifyEmail" checked /> Email reminders</label>
           <label class="toggle"><input type="checkbox" name="notifySms" /> Text reminders</label>
         </div>
+        <p class="hint static-only">
+          Reminder emails/phone numbers are kept out of the public site — set
+          them in your repo's <span id="contacts-link">CONTACTS secret</span>.
+        </p>
         <button type="submit" id="add-btn">Add to streak</button>
         <p class="form-error" id="add-error" hidden></p>
       </form>
+      <p class="hint" id="token-status" hidden></p>
     </section>
 
     <section id="settings-section">

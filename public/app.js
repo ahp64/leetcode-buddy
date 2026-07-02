@@ -6,7 +6,7 @@ let latest = null;
 let staticMode = false;
 
 async function loadStatic() {
-  const res = await fetch('./status.json', { cache: 'no-store' });
+  const res = await fetch(`./status.json?t=${Date.now()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`status.json missing (${res.status})`);
   const s = await res.json();
   // Normalize to the /api/status shape render() expects.
@@ -15,6 +15,73 @@ async function loadStatic() {
     settings: { timezone: s.timezone, reminderHours: [] },
     channels: { email: false, sms: false },
   };
+}
+
+// --- Managing the group straight from the GitHub Pages mirror ------------
+// A static page can't have a backend, but GitHub's own API accepts browser
+// requests — so with a repo-scoped token (pasted once, kept in this
+// browser's localStorage) the page dispatches the "Manage buddies" workflow
+// that adds/removes people and redeploys this dashboard.
+
+const TOKEN_KEY = 'lcbuddy_token';
+const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
+const repoPath = () => new URL(latest.repoUrl).pathname.slice(1);
+
+async function gh(path, opts = {}) {
+  const res = await fetch(`https://api.github.com/repos/${repoPath()}${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      Accept: 'application/vnd.github+json',
+      ...opts.headers,
+    },
+  });
+  if (res.status === 401) throw new Error('GitHub rejected the token — it may have expired. Disconnect and paste a new one.');
+  if (res.status === 403 || res.status === 404) {
+    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Actions" permission set to Read and write.');
+  }
+  if (!res.ok) throw new Error(`GitHub API error (${res.status})`);
+  return res.status === 204 ? null : res.json();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function applyRosterChange(inputs, progress) {
+  const startedAt = Date.now();
+  progress(`Asking GitHub to ${inputs.action} @${inputs.leetcode_username}…`);
+  await gh('/actions/workflows/manage.yml/dispatches', {
+    method: 'POST',
+    body: JSON.stringify({ ref: 'main', inputs }),
+  });
+
+  // The dispatch call returns before the run exists; find it, then follow it.
+  progress('GitHub is applying the change (takes about a minute)…');
+  let run = null;
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await sleep(6000);
+    const { workflow_runs } = await gh('/actions/workflows/manage.yml/runs?per_page=1');
+    const candidate = workflow_runs?.[0];
+    if (!candidate || new Date(candidate.created_at).getTime() < startedAt - 30000) continue;
+    run = candidate;
+    if (run.status === 'completed') break;
+  }
+  if (!run || run.status !== 'completed') {
+    throw new Error('GitHub is taking unusually long — check the Actions tab for the result.');
+  }
+  if (run.conclusion !== 'success') {
+    throw new Error(`GitHub couldn't apply it (usually a mistyped LeetCode username). Details: ${run.html_url}`);
+  }
+
+  // Run finished (dashboard redeployed) — wait for the CDN to serve it.
+  progress('Change applied — refreshing dashboard…');
+  const before = latest.generatedAt;
+  for (let i = 0; i < 15; i++) {
+    await sleep(4000);
+    latest = await loadStatic();
+    if (latest.generatedAt !== before) break;
+  }
+  render(latest);
 }
 
 async function api(path, opts = {}) {
@@ -76,18 +143,36 @@ function render(s) {
   $('today-date').textContent = `${s.today} · ${s.settings.timezone}`;
   $('solo-hint').hidden = staticMode || s.members.length !== 1;
 
-  // On GitHub Pages there's no API to write to — management happens through
-  // GitHub itself (Actions form + secrets), so link there instead.
-  $('add-section').hidden = staticMode;
+  // On GitHub Pages the page has no backend: roster changes go through the
+  // GitHub API (token pasted once), everything else links to GitHub forms.
+  document.body.classList.toggle('static', staticMode);
+  $('add-section').hidden = staticMode && !s.repoUrl;
   $('settings-section').hidden = staticMode;
+  const connected = staticMode && Boolean(getToken());
+  $('connect-card').hidden = !staticMode || connected;
+  $('add-form').hidden = staticMode && !connected;
+  const tokenStatus = $('token-status');
+  tokenStatus.hidden = !connected;
+  if (connected) {
+    tokenStatus.innerHTML =
+      'Connected to GitHub ✓ — changes run through your repo\'s "Manage buddies" workflow. <a href="#" id="token-disconnect">Disconnect</a>';
+    tokenStatus.querySelector('#token-disconnect').addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem(TOKEN_KEY);
+      render(latest);
+    });
+  }
+  if (staticMode && s.repoUrl) {
+    $('contacts-link').innerHTML =
+      `<a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">CONTACTS secret</a>`;
+  }
   const note = $('readonly-note');
   note.hidden = !staticMode;
   if (staticMode && s.generatedAt) {
     const mins = Math.max(0, Math.round((Date.now() - new Date(s.generatedAt)) / 60000));
     const age = mins < 1 ? 'just now' : `${mins} min ago`;
     const links = s.repoUrl
-      ? ` · <a href="${s.repoUrl}/actions/workflows/manage.yml" target="_blank" rel="noopener">➕ add/remove people</a>` +
-        ` · <a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">🔔 reminder contacts</a>` +
+      ? ` · <a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">🔔 reminder contacts</a>` +
         ` · <a href="${s.repoUrl}/edit/main/config.json" target="_blank" rel="noopener">⚙️ hours/timezone</a>`
       : '';
     note.innerHTML = `Updated ${age}${links}`;
@@ -139,7 +224,9 @@ function memberCard(m) {
   }
 
   const controls = staticMode
-    ? ''
+    ? getToken()
+      ? '<div class="controls"><button class="remove">remove</button></div>'
+      : ''
     : `<div class="controls">
         <label class="toggle"><input type="checkbox" data-field="notifyEmail" ${m.notifyEmail ? 'checked' : ''}/> email</label>
         <label class="toggle"><input type="checkbox" data-field="notifySms" ${m.notifySms ? 'checked' : ''}/> text</label>
@@ -155,7 +242,29 @@ function memberCard(m) {
     </div>
     ${controls}`;
 
-  if (staticMode) return el;
+  if (staticMode) {
+    el.querySelector('.remove')?.addEventListener('click', async () => {
+      if (!confirm(`Remove ${m.name} from the streak?`)) return;
+      const errEl = $('add-error');
+      const progress = (msg) => {
+        errEl.textContent = msg;
+        errEl.className = 'form-error progress';
+        errEl.hidden = false;
+      };
+      try {
+        await applyRosterChange(
+          { action: 'remove', leetcode_username: m.leetcodeUsername },
+          progress
+        );
+        errEl.hidden = true;
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.className = 'form-error';
+        errEl.hidden = false;
+      }
+    });
+    return el;
+  }
 
   el.querySelectorAll('input[data-field]').forEach((box) => {
     box.addEventListener('change', async () => {
@@ -187,21 +296,61 @@ $('add-form').addEventListener('submit', async (e) => {
   const btn = $('add-btn');
   const errEl = $('add-error');
   errEl.hidden = true;
+  errEl.className = 'form-error';
   btn.disabled = true;
-  btn.textContent = 'Checking LeetCode…';
+  btn.textContent = staticMode ? 'Sending to GitHub…' : 'Checking LeetCode…';
   try {
     const data = Object.fromEntries(new FormData(form));
-    data.notifyEmail = form.notifyEmail.checked;
-    data.notifySms = form.notifySms.checked;
-    await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
+    if (staticMode) {
+      await applyRosterChange(
+        {
+          action: 'add',
+          leetcode_username: data.leetcodeUsername.trim(),
+          display_name: (data.name ?? '').trim(),
+        },
+        (msg) => {
+          errEl.textContent = msg;
+          errEl.className = 'form-error progress';
+          errEl.hidden = false;
+        }
+      );
+      errEl.hidden = true;
+    } else {
+      data.notifyEmail = form.notifyEmail.checked;
+      data.notifySms = form.notifySms.checked;
+      await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
+      await refresh();
+    }
     form.reset();
-    await refresh();
   } catch (err) {
     errEl.textContent = err.message;
+    errEl.className = 'form-error';
     errEl.hidden = false;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Add to streak';
+  }
+});
+
+$('token-save').addEventListener('click', async () => {
+  const errEl = $('token-error');
+  errEl.hidden = true;
+  const token = $('token-input').value.trim();
+  if (!token) {
+    errEl.textContent = 'Paste a token first.';
+    errEl.hidden = false;
+    return;
+  }
+  localStorage.setItem(TOKEN_KEY, token);
+  try {
+    // Cheap permission check before declaring victory.
+    await gh('/actions/workflows/manage.yml/runs?per_page=1');
+    $('token-input').value = '';
+    render(latest);
+  } catch (err) {
+    localStorage.removeItem(TOKEN_KEY);
+    errEl.textContent = err.message;
+    errEl.hidden = false;
   }
 });
 
