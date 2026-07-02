@@ -1,0 +1,20 @@
+{
+  "name": "leetcode-buddy-streak",
+  "version": "1.0.0",
+  "description": "Shared LeetCode accountability streak — if anyone in the group misses a day, the streak dies for everyone.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "remind": "node remind.js",
+    "build-status": "node build-status.js",
+    "sync-config": "gh secret set BUDDY_CONFIG < data/db.json",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "nodemailer": "^6.9.13"
+  }
+}

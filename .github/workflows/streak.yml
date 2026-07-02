@@ -1,0 +1,73 @@
+# Hourly streak check: rebuilds the GitHub Pages dashboard every run, and
+# sends reminders when the current hour (in the group's timezone) is one of
+# the configured reminder hours — remind.js --if-scheduled makes that call,
+# so UTC/DST conversion never needs to live in this file.
+#
+# Caveats of GitHub's scheduler: runs can lag the cron time by ~15 minutes,
+# and schedules are paused automatically after 60 days without repo activity
+# (re-enable from the Actions tab or push a commit).
+name: Streak check & dashboard
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  streak:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # Member config never lives in the repo — it comes from the BUDDY_CONFIG
+      # secret, uploaded from your machine with `npm run sync-config`.
+      - name: Restore config from secret
+        env:
+          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
+        run: |
+          if [ -z "$BUDDY_CONFIG" ]; then
+            echo "::notice::No BUDDY_CONFIG secret set — dashboard will be empty. Add members in the local UI, then run 'npm run sync-config'."
+          else
+            mkdir -p data
+            printf '%s' "$BUDDY_CONFIG" > data/db.json
+          fi
+
+      - name: Send reminders (only at configured local hours)
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+        run: node remind.js --if-scheduled
+
+      - name: Build dashboard
+        run: node build-status.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
