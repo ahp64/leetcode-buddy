@@ -5,5 +5,10 @@
     18,
     21
   ],
-  "members": []
+  "members": [
+    {
+      "name": "Lee",
+      "leetcodeUsername": "lee215"
+    }
+  ]
 }
