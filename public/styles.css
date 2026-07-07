@@ -152,6 +152,11 @@ button.secondary { background: transparent; color: var(--accent); border: 1px so
 }
 .btn-link:hover { filter: brightness(1.2); }
 
+#token-panel { margin-top: 10px; }
+#token-panel label { margin: 10px 0; }
+#token-panel button { margin-top: 4px; }
+.form-error.progress { color: var(--ice); }
+
 .form-error { color: var(--bad); font-size: 13px; margin: 10px 0 0; }
 .form-error.ok { color: var(--good); }
 

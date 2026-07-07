@@ -187,6 +187,15 @@ instantly. The freeze state itself lives in [freeze.json](freeze.json) —
 just dates, nothing private — so the workflows can update it with a plain
 commit.
 
+**Optional: true one-click controls on the hosted page.** The freeze card
+offers "⚡ Connect GitHub": create a
+[fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
+with access to *only your streak repo* and the **Actions** repository
+permission set to **Read and write**, and paste it in once. It's stored
+only in that browser, and the Freeze/Unfreeze buttons then run the
+workflows directly from the page — no trip to the Actions tab. (The same
+earn-it rules are still enforced by the workflow itself.)
+
 ## Running locally (optional, for developers)
 
 The same app runs as a local server with a full management UI (add people

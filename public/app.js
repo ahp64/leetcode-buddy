@@ -29,7 +29,99 @@ async function api(path, opts = {}) {
   return json;
 }
 
+// --- One-click freeze/unfreeze on the GitHub Pages mirror -----------------
+// The static page has no backend, but GitHub's API accepts browser requests:
+// with a repo-scoped token (pasted once, kept in this browser's
+// localStorage) the buttons dispatch the freeze/unfreeze workflows directly
+// instead of linking out to the Actions tab.
+
+const TOKEN_KEY = 'lcbuddy_token';
+const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
+const repoPath = () => new URL(latest.repoUrl).pathname.slice(1);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let busy = false; // suppress the auto-refresh while following a workflow run
+
+async function gh(path, opts = {}) {
+  const res = await fetch(`https://api.github.com/repos/${repoPath()}${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      Accept: 'application/vnd.github+json',
+      ...opts.headers,
+    },
+  });
+  if (res.status === 401) {
+    throw new Error('GitHub rejected the token — it may have expired. Disconnect and paste a new one.');
+  }
+  if (res.status === 403 || res.status === 404) {
+    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Actions" permission set to Read and write.');
+  }
+  if (!res.ok) throw new Error(`GitHub API error (${res.status})`);
+  return res.status === 204 ? null : res.json();
+}
+
+// Dispatch a workflow, follow its run to completion, then wait for the
+// redeployed dashboard data to land.
+async function runWorkflow(file, inputs, progress) {
+  const startedAt = Date.now();
+  progress('Asking GitHub…');
+  await gh(`/actions/workflows/${file}/dispatches`, {
+    method: 'POST',
+    body: JSON.stringify(inputs ? { ref: 'main', inputs } : { ref: 'main' }),
+  });
+
+  progress('GitHub is applying it (takes about a minute)…');
+  let run = null;
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await sleep(6000);
+    const { workflow_runs } = await gh(`/actions/workflows/${file}/runs?per_page=1`);
+    const candidate = workflow_runs?.[0];
+    if (!candidate || new Date(candidate.created_at).getTime() < startedAt - 30000) continue;
+    run = candidate;
+    if (run.status === 'completed') break;
+  }
+  if (!run || run.status !== 'completed') {
+    throw new Error('GitHub is taking unusually long — check the Actions tab for the result.');
+  }
+  if (run.conclusion !== 'success') {
+    throw new Error(`GitHub refused the change (see the log: ${run.html_url})`);
+  }
+
+  progress('Done — refreshing dashboard…');
+  const before = latest.generatedAt;
+  for (let i = 0; i < 15; i++) {
+    await sleep(4000);
+    latest = await loadStatic();
+    if (latest.generatedAt !== before) break;
+  }
+}
+
+// Wraps a freeze/unfreeze action with progress + error display and the
+// busy guard, then re-renders.
+async function freezeAction(fn) {
+  const errEl = $('freeze-error');
+  const progress = (msg) => {
+    errEl.textContent = msg;
+    errEl.className = 'form-error progress';
+    errEl.hidden = false;
+  };
+  busy = true;
+  try {
+    await fn(progress);
+    busy = false;
+    render(latest); // hides the progress line
+  } catch (err) {
+    busy = false;
+    render(latest);
+    errEl.textContent = err.message;
+    errEl.className = 'form-error';
+    errEl.hidden = false;
+  }
+}
+
 async function refresh() {
+  if (busy) return; // don't repaint mid freeze/unfreeze operation
   try {
     latest = staticMode ? await loadStatic() : await api('/api/status');
   } catch (err) {
@@ -129,18 +221,38 @@ function renderFreeze(s) {
   const hint = $('freeze-hint');
   $('freeze-error').hidden = true;
 
-  // On the static mirror the buttons deep-link to the one-click
-  // freeze/unfreeze workflows on GitHub instead of calling a local API.
+  // Static mirror, three tiers: connected (token pasted) gets real one-click
+  // buttons that dispatch the workflows via the GitHub API; unconnected gets
+  // deep links to the workflows' Run forms plus a "connect" offer.
+  const connected = staticMode && Boolean(getToken());
+  const interactive = !staticMode || connected;
+
+  const showConnectOffer = (visible) => {
+    $('freeze-connect').hidden = !(visible && staticMode && !connected && s.repoUrl);
+    const status = $('token-status');
+    status.hidden = !(visible && connected);
+    if (visible && connected) {
+      status.innerHTML =
+        '⚡ Connected to GitHub — one-click controls active. <a href="#" id="token-disconnect">Disconnect</a>';
+      status.querySelector('#token-disconnect').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem(TOKEN_KEY);
+        render(latest);
+      });
+    }
+  };
+
   if (s.freeze) {
     card.hidden = false;
     active.hidden = false;
     offer.hidden = true;
     hint.hidden = true;
     $('freeze-until').textContent = s.freeze.until;
-    $('unfreeze-btn').hidden = staticMode;
+    $('unfreeze-btn').hidden = !interactive;
     const unfreezeLink = $('unfreeze-link');
-    unfreezeLink.hidden = !(staticMode && s.repoUrl);
+    unfreezeLink.hidden = !(staticMode && !connected && s.repoUrl);
     if (s.repoUrl) unfreezeLink.href = `${s.repoUrl}/actions/workflows/unfreeze.yml`;
+    showConnectOffer(true);
     return;
   }
   active.hidden = true;
@@ -152,17 +264,19 @@ function renderFreeze(s) {
     card.hidden = false;
     offer.hidden = false;
     hint.hidden = true;
-    $('freeze-btn').hidden = staticMode;
-    $('freeze-days').closest('label').hidden = staticMode;
+    $('freeze-btn').hidden = !interactive;
+    $('freeze-days').closest('label').hidden = !interactive;
     const freezeLink = $('freeze-link');
-    freezeLink.hidden = !(staticMode && s.repoUrl);
+    freezeLink.hidden = !(staticMode && !connected && s.repoUrl);
     if (s.repoUrl) freezeLink.href = `${s.repoUrl}/actions/workflows/freeze.yml`;
+    showConnectOffer(true);
   } else if (s.todayComplete && !staticMode) {
     // Solved, but too late in the day to freeze — say why.
     card.hidden = false;
     offer.hidden = true;
     hint.textContent = `🧊 ${s.canFreeze?.reason ?? ''}`;
     hint.hidden = false;
+    showConnectOffer(false);
   } else {
     card.hidden = true;
   }
@@ -260,28 +374,60 @@ $('add-form').addEventListener('submit', async (e) => {
 });
 
 $('freeze-btn').addEventListener('click', async () => {
-  const errEl = $('freeze-error');
   const btn = $('freeze-btn');
-  errEl.hidden = true;
+  const days = Number($('freeze-days').value);
   btn.disabled = true;
-  try {
-    await api('/api/freeze', {
-      method: 'POST',
-      body: JSON.stringify({ days: Number($('freeze-days').value) }),
-    });
-    await refresh();
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.hidden = false;
-  } finally {
-    btn.disabled = false;
-  }
+  await freezeAction(async (progress) => {
+    if (staticMode) {
+      await runWorkflow('freeze.yml', { days: String(days) }, progress);
+    } else {
+      await api('/api/freeze', { method: 'POST', body: JSON.stringify({ days }) });
+      latest = await api('/api/status');
+    }
+  });
+  btn.disabled = false;
 });
 
 $('unfreeze-btn').addEventListener('click', async () => {
   if (!confirm('Unfreeze the streak? Daily solves are required again starting today.')) return;
-  await api('/api/freeze', { method: 'DELETE' }).catch((err) => alert(err.message));
-  refresh();
+  const btn = $('unfreeze-btn');
+  btn.disabled = true;
+  await freezeAction(async (progress) => {
+    if (staticMode) {
+      await runWorkflow('unfreeze.yml', undefined, progress);
+    } else {
+      await api('/api/freeze', { method: 'DELETE' });
+      latest = await api('/api/status');
+    }
+  });
+  btn.disabled = false;
+});
+
+$('show-token').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('token-panel').hidden = !$('token-panel').hidden;
+});
+
+$('token-save').addEventListener('click', async () => {
+  const errEl = $('token-error');
+  errEl.hidden = true;
+  const token = $('token-input').value.trim();
+  if (!token) {
+    errEl.textContent = 'Paste a token first.';
+    errEl.hidden = false;
+    return;
+  }
+  localStorage.setItem(TOKEN_KEY, token);
+  try {
+    // Cheap permission check before declaring victory.
+    await gh('/actions/workflows?per_page=1');
+    $('token-input').value = '';
+    render(latest);
+  } catch (err) {
+    localStorage.removeItem(TOKEN_KEY);
+    errEl.textContent = err.message;
+    errEl.hidden = false;
+  }
 });
 
 $('save-settings').addEventListener('click', async () => {

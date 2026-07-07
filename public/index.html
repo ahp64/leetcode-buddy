@@ -38,6 +38,26 @@
           </div>
           <a id="freeze-link" class="btn-link" target="_blank" rel="noopener" hidden>Freeze streak → pick days, then “Run workflow”</a>
         </div>
+        <div id="freeze-connect" hidden>
+          <p class="hint">⚡ Want these to work in one click right here?
+            <a href="#" id="show-token">Connect GitHub</a></p>
+          <div id="token-panel" hidden>
+            <p class="hint">
+              Create a
+              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>
+              with access to <em>only this repository</em> and the
+              <strong>Actions</strong> repository permission set to
+              <strong>Read and write</strong>, then paste it here. It is
+              stored only in this browser.
+            </p>
+            <label>GitHub token
+              <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
+            </label>
+            <button id="token-save">Connect</button>
+            <p class="form-error" id="token-error" hidden></p>
+          </div>
+        </div>
+        <p class="hint" id="token-status" hidden></p>
         <p class="hint" id="freeze-hint" hidden></p>
         <p class="form-error" id="freeze-error" hidden></p>
       </div>
