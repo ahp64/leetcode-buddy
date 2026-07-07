@@ -44,11 +44,17 @@
           <div id="token-panel" hidden>
             <p class="hint">
               Create a
-              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>
-              with access to <em>only this repository</em> and the
-              <strong>Actions</strong> repository permission set to
-              <strong>Read and write</strong>, then paste it here. It is
-              stored only in this browser.
+              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>:
+              under <strong>Repository access</strong> choose
+              <em>Only select repositories</em> → this repo (not “Public
+              repositories” — that forces read-only). Then in the
+              <strong>Repository permissions</strong> list, find the
+              <strong>Actions</strong> row (“Workflows, workflow runs and
+              artifacts”) and set its <strong>Access</strong> dropdown to
+              <strong>Read and write</strong>. Leave every other row on “No
+              access” (Metadata: Read-only adds itself — that's normal).
+              Generate, copy the <code>github_pat_…</code>, paste it here.
+              It is stored only in this browser.
             </p>
             <label>GitHub token
               <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />

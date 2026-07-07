@@ -188,13 +188,32 @@ just dates, nothing private — so the workflows can update it with a plain
 commit.
 
 **Optional: true one-click controls on the hosted page.** The freeze card
-offers "⚡ Connect GitHub": create a
-[fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
-with access to *only your streak repo* and the **Actions** repository
-permission set to **Read and write**, and paste it in once. It's stored
-only in that browser, and the Freeze/Unfreeze buttons then run the
-workflows directly from the page — no trip to the Actions tab. (The same
-earn-it rules are still enforced by the workflow itself.)
+offers "⚡ Connect GitHub" — paste in a token once, and the Freeze/Unfreeze
+buttons run the workflows directly from the page, no trip to the Actions
+tab. (The same earn-it rules are still enforced by the workflow itself.)
+
+Creating that token, exactly:
+
+1. Go to [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
+   (GitHub → Settings → Developer settings → Personal access tokens →
+   **Fine-grained tokens** → Generate new token). Don't use the "classic"
+   token page — classic tokens can't be limited to one repo.
+2. Under **Repository access**, choose **Only select repositories** and
+   pick your streak repo. ⚠️ Not "Public repositories" — that option forces
+   the whole token to read-only and hides the write permissions.
+3. Under **Permissions → Repository permissions** you'll see a long list of
+   specific permissions, each with its own **Access** dropdown on the
+   right. Find the **Actions** row ("Workflows, workflow runs and
+   artifacts") and set it to **Read and write**. Leave every other row on
+   "No access" — you don't need *Workflows* (editing workflow files) or
+   *Contents* (repo code), and *Metadata: Read-only* switches on by itself,
+   which is normal and required.
+4. **Generate token**, copy the `github_pat_…` value (it's shown once), and
+   paste it into the dashboard's Connect panel.
+
+Scoped this way, the token can only trigger and read workflow runs on this
+one repo — it can't touch code, secrets, or any other repository, so even
+the worst-case leak from your browser is somebody toggling your freeze.
 
 ## Running locally (optional, for developers)
 
