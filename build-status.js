@@ -25,6 +25,7 @@ const publicStatus = {
   todayComplete: status.todayComplete,
   freeze: status.freeze,
   frozenToday: status.frozenToday,
+  canFreeze: status.canFreeze,
   members: status.members.map((m) => ({
     name: m.name,
     leetcodeUsername: m.leetcodeUsername,

@@ -139,6 +139,19 @@ button.secondary { background: transparent; color: var(--accent); border: 1px so
 
 .settings-actions { display: flex; gap: 10px; margin-top: 14px; }
 
+.btn-link {
+  display: inline-block;
+  background: transparent;
+  color: var(--ice);
+  border: 1px solid var(--ice);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.btn-link:hover { filter: brightness(1.2); }
+
 .form-error { color: var(--bad); font-size: 13px; margin: 10px 0 0; }
 .form-error.ok { color: var(--good); }
 

@@ -179,19 +179,13 @@ be at least **8 hours before midnight** (your timezone) — freezes are
 planned ahead, not a midnight escape hatch. It starts tomorrow and covers
 the number of days you choose.
 
-- **Running locally**: a freeze offer appears on the dashboard whenever
-  you're eligible; one click (and a day count) does it, and an "Unfreeze
-  early" button undoes it.
-- **Running on GitHub**: add a `freeze` field to your `BUDDY_CONFIG` secret
-  (the same rules are enforced by the streak math — days outside the range
-  behave normally):
-
-  ```json
-  "freeze": { "from": "2026-07-10", "until": "2026-07-12" }
-  ```
-
-  Remove the field to unfreeze. (Or freeze from the local app and run
-  `npm run sync-config`.)
+The dashboard has the controls: when you're eligible, a **Freeze streak**
+button appears; while frozen, an **Unfreeze early** button appears. On the
+hosted dashboard these take you to a one-click GitHub form ("Run workflow")
+that checks the rules and updates the page; on the local app they apply
+instantly. The freeze state itself lives in [freeze.json](freeze.json) —
+just dates, nothing private — so the workflows can update it with a plain
+commit.
 
 ## Running locally (optional, for developers)
 

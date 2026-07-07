@@ -1,0 +1,58 @@
+# The "Freeze streak" button: Actions tab → Freeze streak → Run workflow
+# (the dashboard links straight here). Validates the earn-it rules against
+# live LeetCode data — everyone solved today, 8+ hours before midnight —
+# then commits freeze.json and redeploys the dashboard.
+name: Freeze streak
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days off (1-14), starting tomorrow
+        default: '1'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Restore config from secret
+        env:
+          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
+        run: |
+          mkdir -p data
+          [ -n "$BUDDY_CONFIG" ] && printf '%s' "$BUDDY_CONFIG" > data/db.json || true
+
+      - name: Apply freeze
+        env:
+          DAYS: ${{ inputs.days }}
+        run: node freeze.js freeze "$DAYS"
+
+      - name: Commit freeze.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add freeze.json
+          git diff --cached --quiet || { git commit -m "Freeze streak"; git push; }
+
+  publish:
+    needs: freeze
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/streak.yml
+    secrets: inherit

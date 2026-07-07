@@ -129,6 +129,8 @@ function renderFreeze(s) {
   const hint = $('freeze-hint');
   $('freeze-error').hidden = true;
 
+  // On the static mirror the buttons deep-link to the one-click
+  // freeze/unfreeze workflows on GitHub instead of calling a local API.
   if (s.freeze) {
     card.hidden = false;
     active.hidden = false;
@@ -136,10 +138,13 @@ function renderFreeze(s) {
     hint.hidden = true;
     $('freeze-until').textContent = s.freeze.until;
     $('unfreeze-btn').hidden = staticMode;
+    const unfreezeLink = $('unfreeze-link');
+    unfreezeLink.hidden = !(staticMode && s.repoUrl);
+    if (s.repoUrl) unfreezeLink.href = `${s.repoUrl}/actions/workflows/unfreeze.yml`;
     return;
   }
   active.hidden = true;
-  if (staticMode || s.members.length === 0) {
+  if (s.members.length === 0) {
     card.hidden = true;
     return;
   }
@@ -147,7 +152,12 @@ function renderFreeze(s) {
     card.hidden = false;
     offer.hidden = false;
     hint.hidden = true;
-  } else if (s.todayComplete) {
+    $('freeze-btn').hidden = staticMode;
+    $('freeze-days').closest('label').hidden = staticMode;
+    const freezeLink = $('freeze-link');
+    freezeLink.hidden = !(staticMode && s.repoUrl);
+    if (s.repoUrl) freezeLink.href = `${s.repoUrl}/actions/workflows/freeze.yml`;
+  } else if (s.todayComplete && !staticMode) {
     // Solved, but too late in the day to freeze — say why.
     card.hidden = false;
     offer.hidden = true;

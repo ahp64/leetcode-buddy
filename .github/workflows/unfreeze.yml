@@ -1,0 +1,43 @@
+# The "Unfreeze streak" button: Actions tab → Unfreeze streak → Run workflow
+# (the dashboard links straight here). Ends the freeze immediately — daily
+# solves are required again starting today — and redeploys the dashboard.
+name: Unfreeze streak
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unfreeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Remove freeze
+        run: node freeze.js unfreeze
+
+      - name: Commit freeze.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add freeze.json
+          git diff --cached --quiet || { git commit -m "Unfreeze streak"; git push; }
+
+  publish:
+    needs: unfreeze
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/streak.yml
+    secrets: inherit
