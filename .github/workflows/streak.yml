@@ -3,9 +3,6 @@
 # the reminder hours in config.json — remind.js --if-scheduled makes that
 # call, so UTC/DST conversion never needs to live in this file.
 #
-# Also callable from manage.yml (workflow_call) so the dashboard refreshes
-# immediately after adding/removing a buddy.
-#
 # Caveats of GitHub's scheduler: runs can lag the cron time by ~15 minutes,
 # and schedules are paused automatically after 60 days without repo activity
 # (re-enable from the Actions tab or push a commit).
@@ -15,7 +12,6 @@ on:
   schedule:
     - cron: '7 * * * *'
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -33,11 +29,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # Always build from latest main: when called from manage.yml, the
-      # triggering sha predates the config.json commit that run just pushed.
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -45,18 +37,18 @@ jobs:
 
       - run: npm ci
 
-      # Members/settings come from the committed config.json. Contact info
-      # (emails/phones/toggles) never enters the repo — it comes from the
-      # CONTACTS secret, editable under Settings → Secrets → Actions.
-      - name: Restore contacts from secret
+      # The whole group config (members, contacts, timezone, hours, freeze)
+      # lives in the BUDDY_CONFIG secret — never in the repo. Edit it under
+      # Settings → Secrets and variables → Actions.
+      - name: Restore config from secret
         env:
-          CONTACTS: ${{ secrets.CONTACTS }}
+          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
         run: |
           mkdir -p data
-          if [ -z "$CONTACTS" ]; then
-            echo "::notice::No CONTACTS secret set — reminders will log to this console instead of emailing/texting. See README."
+          if [ -z "$BUDDY_CONFIG" ]; then
+            echo "::notice::No BUDDY_CONFIG secret set — dashboard will be empty. See the README for the setup steps."
           else
-            printf '%s' "$CONTACTS" > data/contacts.json
+            printf '%s' "$BUDDY_CONFIG" > data/db.json
           fi
 
       - name: Send reminders (only at configured local hours)

@@ -10,9 +10,12 @@ A shared accountability streak for you and your buddy (or a whole group).
   and the shared streak count.
 - Slackers get reminded by **email and/or text** (per-person toggles), and
   buddies who already solved get a "your buddy is slacking" heads-up.
+- Earned a break? **Freeze the streak** for a few days — allowed only while
+  today is already solved with at least 8 hours to spare.
 - **Runs entirely on GitHub, for free** — nothing to install, no server to
   keep running. GitHub checks the streak every hour, sends the reminders,
-  and hosts the dashboard page.
+  and hosts the dashboard page. The whole group is configured with **one
+  secret**.
 
 ## Set it up (10 minutes, all in the browser)
 
@@ -23,8 +26,7 @@ Two GitHub features do all the work, so here's what they are in one line
 each:
 
 - **GitHub Actions** — GitHub runs small jobs for you on its own computers,
-  on a schedule or when you press a button. This project uses it to check
-  LeetCode and send reminders.
+  on a schedule. This project uses it to check LeetCode and send reminders.
 - **GitHub Pages** — GitHub hosts a website for your repository for free.
   This project uses it for the dashboard.
 
@@ -36,102 +38,90 @@ each:
    and click **Create repository**.
 
 > Why Public? GitHub Pages is only free on public repositories. Don't worry:
-> the only personal things a copy of this project ever shows are LeetCode
-> usernames and solve activity — which are already public on leetcode.com.
-> Emails and phone numbers are stored as *secrets* (Step 4), which nobody
-> but your own workflows can read.
+> the dashboard only ever shows LeetCode usernames and solve activity —
+> which are already public on leetcode.com. Your emails and phone numbers
+> live in a *secret* (next step), which nobody but your own repo's workflows
+> can read.
 
 Everything from here happens **in your new copy**, not in this original repo.
 
-### Step 2 — Turn on the dashboard website
+### Step 2 — Configure your group with one secret
 
-1. In your repo, click the **Settings** tab (top of the page).
-2. In the left sidebar, click **Pages**.
-3. Under "Build and deployment", set **Source** to **GitHub Actions**.
+A **secret** is a value stored with your repo that only your own workflows
+can read — it never appears in code or on the dashboard, even though the
+repo is public.
 
-That's it — your dashboard's address will be
-`https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/`. It will show content
-after the first workflow run (next step).
-
-### Step 3 — Add yourself and your buddy
-
-1. Click the **Actions** tab. If GitHub shows a button saying
-   *"I understand my workflows, go ahead and enable them"*, click it (GitHub
-   disables workflows on fresh template copies until you opt in).
-2. In the left sidebar, click **Manage buddies**.
-3. On the right, click the **Run workflow** dropdown. Fill in:
-   - **Add or remove?** → `add`
-   - **LeetCode username** → your exact LeetCode username (the one in your
-     leetcode.com profile URL)
-   - **Display name** → whatever you want the dashboard to call you
-     (optional)
-4. Click the green **Run workflow** button. A run appears in the list —
-   yellow dot means running, green check means done (~1 minute). If the
-   username has a typo, the run fails with a red X and the log tells you why.
-5. Repeat for your buddy (and anyone else — the streak then requires *all*
-   of you to solve daily).
-
-Now open your dashboard URL from Step 2 — you should see everyone listed
-with today's status. It refreshes itself every hour. (Want it fresher right
-now? Actions → **Streak check & dashboard** → Run workflow.)
-
-**Prefer adding people on the dashboard page itself?** You can, after a
-one-time connection so GitHub knows it's you and not a random visitor:
-
-1. On the dashboard, the "Add a person" box asks for a GitHub token. Click
-   the link there (or go to GitHub → your profile picture → Settings →
-   Developer settings → Personal access tokens → **Fine-grained tokens** →
-   Generate new token).
-2. Under "Repository access" choose **Only select repositories** and pick
-   your streak repo. Under "Permissions → Repository permissions", set
-   **Actions** to **Read and write**. Generate, copy the `github_pat_…`
-   value, and paste it into the dashboard.
-
-The token is saved only in that browser, and the page then adds/removes
-people for you (it drives the same "Manage buddies" workflow behind the
-scenes — changes take about a minute to apply).
-
-### Step 4 — Turn on email/text reminders (optional but recommended)
-
-Without this step everything still works — you just won't get pinged when
-someone's slacking.
-
-Reminder settings live in **secrets**: values only your repo's workflows can
-read. Even on a public repo, nobody else can ever see them. To add one:
-**Settings** tab → **Secrets and variables** → **Actions** → green
-**New repository secret** button.
-
-**4a. Who gets notified — add a secret named `CONTACTS`**
-
-Its value is a snippet in this shape (edit the usernames and details, keep
-the quotes and braces):
+1. In your repo: **Settings** tab → **Secrets and variables** → **Actions**
+   → green **New repository secret** button.
+2. Name: `BUDDY_CONFIG`
+3. Value: copy this and edit it for your group (keep every quote and brace):
 
 ```json
 {
-  "your-leetcode-username": {
-    "email": "you@gmail.com",
-    "phone": "+15551234567",
-    "notifyEmail": true,
-    "notifySms": true
+  "settings": {
+    "timezone": "America/Chicago",
+    "reminderHours": [12, 18, 21]
   },
-  "buddys-leetcode-username": {
-    "email": "buddy@gmail.com",
-    "notifyEmail": true
-  }
+  "members": [
+    {
+      "name": "You",
+      "leetcodeUsername": "your-leetcode-username",
+      "email": "you@gmail.com",
+      "phone": "+15551234567",
+      "notifyEmail": true,
+      "notifySms": true
+    },
+    {
+      "name": "Your buddy",
+      "leetcodeUsername": "their-leetcode-username",
+      "email": "buddy@gmail.com",
+      "notifyEmail": true
+    }
+  ]
 }
 ```
 
-`notifyEmail` / `notifySms` are the per-person toggles. Leave out `phone`
-and `notifySms` for someone who only wants email, etc. To change it later,
-open the secret and paste a new value (GitHub never shows you the old one —
-keep a copy somewhere if you like).
+What the fields mean:
 
-**4b. How email gets sent — add SMTP secrets**
+- `timezone` — a "day" for the streak is a calendar day here (so an 11:58pm
+  solve still counts). Pick the exact name from
+  [this list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones),
+  e.g. `America/New_York`.
+- `reminderHours` — hours (0–23) when slackers get pinged.
+- `leetcodeUsername` — the name in your leetcode.com profile URL. If it's
+  mistyped, the dashboard shows a ❓ for that person with an error message.
+- `notifyEmail` / `notifySms` — that person's reminder toggles; leave out
+  `phone`/`notifySms` for someone who only wants email, and so on. Add a
+  third member the same way — the streak then requires *all* of you.
 
-The easiest route is a Gmail **app password** (requires 2-step verification
-on your Google account): go to
+To change anything later (add a buddy, change hours, toggle reminders):
+come back here, open the secret, and paste an updated value. GitHub never
+shows you the old value, so keep a copy somewhere handy (a note, a gist —
+anywhere).
+
+### Step 3 — Turn on the dashboard website
+
+1. **Settings** tab → **Pages** (left sidebar).
+2. Under "Build and deployment", set **Source** to **GitHub Actions**.
+3. Click the **Actions** tab. If GitHub shows *"I understand my workflows,
+   go ahead and enable them"*, click it (fresh template copies start with
+   workflows off).
+4. In the left sidebar click **Streak check & dashboard** → **Run workflow**
+   to do the first run now (afterwards it runs itself every hour).
+
+Your dashboard is at `https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/` —
+it shows the streak, everyone's status today, and links back to the secret
+for making changes.
+
+### Step 4 — Make reminders actually send (optional)
+
+Without this step, reminders are only written into the workflow's log. To
+really deliver them, add more secrets (same as Step 2):
+
+**Email — via a Gmail app password** (needs 2-step verification on your
+Google account): create one at
 [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords),
-create one, and copy the 16-character password. Then add these five secrets:
+then add these five secrets:
 
 | Secret name | Value (for Gmail) |
 |---|---|
@@ -143,46 +133,26 @@ create one, and copy the 16-character password. Then add these five secrets:
 
 (Any other email provider's SMTP details work the same way.)
 
-**4c. How texts get sent — add Twilio secrets**
-
-Texts need a [Twilio](https://www.twilio.com/) account (free trial works:
-sign up, get a phone number, find your Account SID and Auth Token on the
-console home page). Add:
+**Texts — via [Twilio](https://www.twilio.com/)** (free trial works): sign
+up, get a phone number, find your Account SID and Auth Token on the console
+home page, and add:
 
 | Secret name | Value |
 |---|---|
 | `TWILIO_ACCOUNT_SID` | your Account SID (starts with `AC`) |
 | `TWILIO_AUTH_TOKEN` | your Auth Token |
-| `TWILIO_FROM` | your Twilio phone number, like `+15559876543` |
+| `TWILIO_FROM` | your Twilio number, like `+15559876543` |
 
-Skip any of 4b/4c you don't want — whatever isn't configured is simply
-logged inside the workflow run instead of sent, which is also how you can
-test: Actions → **Streak check & dashboard** → Run workflow → open the run →
-click the **streak** job → expand "Send reminders" to see what it did.
-
-### Step 5 — Set your timezone and reminder times
-
-Reminder times default to **12:00, 18:00, and 21:00 in America/Chicago**.
-To change them:
-
-1. In your repo's file list, click **`config.json`**, then the pencil icon
-   (✏️) to edit it in the browser.
-2. Set `"timezone"` to yours — pick the exact name from
-   [this list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
-   (e.g. `America/New_York`), and `"reminderHours"` to any hours 0–23.
-3. Click **Commit changes**.
-
-A "day" for the streak = a calendar day in this timezone, so a 11:58pm solve
-still counts.
+To test: Actions → **Streak check & dashboard** → Run workflow → open the
+run → expand "Send reminders" to see exactly what it did.
 
 ### If something looks wrong
 
-- **Dashboard is a 404** — check Step 2 (Pages source must be "GitHub
-  Actions") and that at least one **Streak check & dashboard** run has
-  finished green in the Actions tab.
-- **A run failed (red X)** — click it and read the log; the error messages
-  are written to be understood (bad username, malformed `CONTACTS` JSON,
-  wrong SMTP password, …).
+- **Dashboard is a 404** — check Step 3 (Pages source must be "GitHub
+  Actions") and that at least one workflow run finished green.
+- **A run failed (red X)** — click it and read the log; the errors are
+  written to be understood (malformed `BUDDY_CONFIG` JSON, wrong SMTP
+  password, …).
 - **Reminders arrive a bit late** — GitHub's scheduler can lag up to ~15
   minutes past the hour. Normal.
 - **Everything stopped after ~2 months** — GitHub pauses schedules after 60
@@ -198,21 +168,47 @@ still counts.
 - Each check backfills the last 30 days from members' recent accepted
   submissions, so missed runs don't lose history.
 
+### Freezing the streak
+
+Going on a trip? Finals week? You can **freeze** the streak for 1–14 days:
+frozen days need no solves, can't kill the streak, and don't grow it either
+— it picks up where it left off.
+
+To earn a freeze, the group must **already have solved today**, and it must
+be at least **8 hours before midnight** (your timezone) — freezes are
+planned ahead, not a midnight escape hatch. It starts tomorrow and covers
+the number of days you choose.
+
+- **Running locally**: a freeze offer appears on the dashboard whenever
+  you're eligible; one click (and a day count) does it, and an "Unfreeze
+  early" button undoes it.
+- **Running on GitHub**: add a `freeze` field to your `BUDDY_CONFIG` secret
+  (the same rules are enforced by the streak math — days outside the range
+  behave normally):
+
+  ```json
+  "freeze": { "from": "2026-07-10", "until": "2026-07-12" }
+  ```
+
+  Remove the field to unfreeze. (Or freeze from the local app and run
+  `npm run sync-config`.)
+
 ## Running locally (optional, for developers)
 
-The same app runs as a local server with a full management UI (add people,
-toggles, settings — no GitHub round-trips):
+The same app runs as a local server with a full management UI (add people
+with automatic username validation, toggles, settings, freezing):
 
 ```bash
 npm install
 npm start        # http://localhost:3000
 ```
 
-Local state: members/settings in `config.json` (commit + push to sync your
-GitHub instance), contacts in `data/contacts.json` (gitignored; push to the
-secret with `npm run sync-contacts`). Reminder credentials go in `.env` — see
-[.env.example](.env.example). While the server runs it schedules reminders
-itself; `npm run remind` does a one-shot check for your own cron.
+All state lives in `data/db.json` (gitignored — same shape as the
+`BUDDY_CONFIG` secret). Push your local config to your GitHub instance with
+`npm run sync-config` (needs the [GitHub CLI](https://cli.github.com/)).
+Reminder credentials go in `.env` — see [.env.example](.env.example). While
+the server runs it schedules reminders itself; `npm run remind` does a
+one-shot check for your own cron.
 
 ## Tests
 

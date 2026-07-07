@@ -2,10 +2,14 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { createStore } from './lib/store.js';
-import { getGroupStatus } from './lib/status.js';
+import {
+  getGroupStatus,
+  freezeEligibility,
+  FREEZE_MAX_DAYS,
+} from './lib/status.js';
 import { userExists } from './lib/leetcode.js';
 import { startScheduler, sendReminders } from './lib/scheduler.js';
-import { isValidTimeZone } from './lib/time.js';
+import { isValidTimeZone, dayKey, addDays } from './lib/time.js';
 
 const app = express();
 const store = createStore();
@@ -88,6 +92,38 @@ app.patch('/api/settings', (req, res) => {
           .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
           .sort((a, b) => a - b);
   res.json(store.updateSettings({ timezone, reminderHours: hours }));
+});
+
+// Freeze the streak for the next N days. Only allowed once today is fully
+// solved and with ≥8h of margin before midnight — checked against live data.
+app.post('/api/freeze', async (req, res) => {
+  const days = Number(req.body?.days);
+  if (!Number.isInteger(days) || days < 1 || days > FREEZE_MAX_DAYS) {
+    return res
+      .status(400)
+      .json({ error: `days must be a whole number from 1 to ${FREEZE_MAX_DAYS}.` });
+  }
+  try {
+    const status = await getGroupStatus(store, { fresh: true });
+    const eligibility = freezeEligibility(store, status.todayComplete);
+    if (!eligibility.ok) return res.status(409).json({ error: eligibility.reason });
+    const today = dayKey(new Date(), store.data.settings.timezone);
+    store.data.freeze = {
+      activatedOn: today,
+      from: addDays(today, 1),
+      until: addDays(today, days),
+    };
+    store.save();
+    res.status(201).json(store.data.freeze);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.delete('/api/freeze', (req, res) => {
+  store.data.freeze = null;
+  store.save();
+  res.status(204).end();
 });
 
 app.post('/api/remind-now', async (req, res) => {

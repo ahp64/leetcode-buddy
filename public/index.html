@@ -20,6 +20,25 @@
     <section id="members-section">
       <h2>Today <span class="date" id="today-date"></span></h2>
       <div id="members"></div>
+      <div class="card" id="freeze-card" hidden>
+        <div id="freeze-active" hidden>
+          <p>❄️ <strong>Streak frozen</strong> through <span id="freeze-until"></span> —
+            solves are optional until then, and the streak can't die.</p>
+          <button id="unfreeze-btn" class="secondary">Unfreeze early</button>
+        </div>
+        <div id="freeze-offer" hidden>
+          <p>🧊 Everyone's done with hours to spare — bank it! Freeze the streak
+            and take a guilt-free break.</p>
+          <div class="freeze-controls">
+            <label>Days off
+              <input id="freeze-days" type="number" min="1" max="14" value="1" />
+            </label>
+            <button id="freeze-btn">Freeze streak</button>
+          </div>
+        </div>
+        <p class="hint" id="freeze-hint" hidden></p>
+        <p class="form-error" id="freeze-error" hidden></p>
+      </div>
       <p class="hint" id="solo-hint" hidden>
         A streak needs a buddy — add at least one more person below. If
         <em>either</em> of you misses a day, the streak dies for
@@ -29,22 +48,6 @@
 
     <section id="add-section">
       <h2>Add a person</h2>
-      <div class="card" id="connect-card" hidden>
-        <p class="hint">
-          To add or remove people right from this page, connect it to your
-          GitHub repo once: create a
-          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>
-          with access to <em>only this repository</em> and the
-          <strong>Actions</strong> repository permission set to
-          <strong>Read and write</strong>, then paste it here. It is stored
-          only in this browser.
-        </p>
-        <label>GitHub token
-          <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
-        </label>
-        <button id="token-save">Connect</button>
-        <p class="form-error" id="token-error" hidden></p>
-      </div>
       <form id="add-form" class="card">
         <div class="grid">
           <label>LeetCode username *
@@ -53,25 +56,20 @@
           <label>Display name
             <input name="name" placeholder="defaults to username" autocomplete="off" />
           </label>
-          <label class="local-only">Email
+          <label>Email
             <input name="email" type="email" placeholder="for email reminders" />
           </label>
-          <label class="local-only">Phone
+          <label>Phone
             <input name="phone" type="tel" placeholder="+1555… for text reminders" />
           </label>
         </div>
-        <div class="toggles local-only">
+        <div class="toggles">
           <label class="toggle"><input type="checkbox" name="notifyEmail" checked /> Email reminders</label>
           <label class="toggle"><input type="checkbox" name="notifySms" /> Text reminders</label>
         </div>
-        <p class="hint static-only">
-          Reminder emails/phone numbers are kept out of the public site — set
-          them in your repo's <span id="contacts-link">CONTACTS secret</span>.
-        </p>
         <button type="submit" id="add-btn">Add to streak</button>
         <p class="form-error" id="add-error" hidden></p>
       </form>
-      <p class="hint" id="token-status" hidden></p>
     </section>
 
     <section id="settings-section">

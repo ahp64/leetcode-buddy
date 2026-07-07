@@ -2,7 +2,8 @@ const $ = (id) => document.getElementById(id);
 
 let latest = null;
 // Static mode: this page is being served from GitHub Pages, where there's no
-// API — data comes from a status.json snapshot and management UI is hidden.
+// API — data comes from a status.json snapshot, management happens by
+// editing the repo's secrets, and this page is a read-only mirror.
 let staticMode = false;
 
 async function loadStatic() {
@@ -15,73 +16,6 @@ async function loadStatic() {
     settings: { timezone: s.timezone, reminderHours: [] },
     channels: { email: false, sms: false },
   };
-}
-
-// --- Managing the group straight from the GitHub Pages mirror ------------
-// A static page can't have a backend, but GitHub's own API accepts browser
-// requests — so with a repo-scoped token (pasted once, kept in this
-// browser's localStorage) the page dispatches the "Manage buddies" workflow
-// that adds/removes people and redeploys this dashboard.
-
-const TOKEN_KEY = 'lcbuddy_token';
-const getToken = () => localStorage.getItem(TOKEN_KEY) ?? '';
-const repoPath = () => new URL(latest.repoUrl).pathname.slice(1);
-
-async function gh(path, opts = {}) {
-  const res = await fetch(`https://api.github.com/repos/${repoPath()}${path}`, {
-    ...opts,
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-      Accept: 'application/vnd.github+json',
-      ...opts.headers,
-    },
-  });
-  if (res.status === 401) throw new Error('GitHub rejected the token — it may have expired. Disconnect and paste a new one.');
-  if (res.status === 403 || res.status === 404) {
-    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Actions" permission set to Read and write.');
-  }
-  if (!res.ok) throw new Error(`GitHub API error (${res.status})`);
-  return res.status === 204 ? null : res.json();
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function applyRosterChange(inputs, progress) {
-  const startedAt = Date.now();
-  progress(`Asking GitHub to ${inputs.action} @${inputs.leetcode_username}…`);
-  await gh('/actions/workflows/manage.yml/dispatches', {
-    method: 'POST',
-    body: JSON.stringify({ ref: 'main', inputs }),
-  });
-
-  // The dispatch call returns before the run exists; find it, then follow it.
-  progress('GitHub is applying the change (takes about a minute)…');
-  let run = null;
-  const deadline = Date.now() + 5 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await sleep(6000);
-    const { workflow_runs } = await gh('/actions/workflows/manage.yml/runs?per_page=1');
-    const candidate = workflow_runs?.[0];
-    if (!candidate || new Date(candidate.created_at).getTime() < startedAt - 30000) continue;
-    run = candidate;
-    if (run.status === 'completed') break;
-  }
-  if (!run || run.status !== 'completed') {
-    throw new Error('GitHub is taking unusually long — check the Actions tab for the result.');
-  }
-  if (run.conclusion !== 'success') {
-    throw new Error(`GitHub couldn't apply it (usually a mistyped LeetCode username). Details: ${run.html_url}`);
-  }
-
-  // Run finished (dashboard redeployed) — wait for the CDN to serve it.
-  progress('Change applied — refreshing dashboard…');
-  const before = latest.generatedAt;
-  for (let i = 0; i < 15; i++) {
-    await sleep(4000);
-    latest = await loadStatic();
-    if (latest.generatedAt !== before) break;
-  }
-  render(latest);
 }
 
 async function api(path, opts = {}) {
@@ -119,7 +53,8 @@ function render(s) {
   // Header / flame
   const flame = $('flame');
   flame.className = 'flame';
-  if (s.streak > 0) flame.classList.add(s.atRisk ? 'at-risk' : 'lit');
+  if (s.frozenToday) flame.classList.add('frozen');
+  else if (s.streak > 0) flame.classList.add(s.atRisk ? 'at-risk' : 'lit');
   $('streak-number').textContent = s.streak;
   $('streak-label').textContent =
     s.streak === 1 ? 'day shared streak' : 'days shared streak';
@@ -127,7 +62,10 @@ function render(s) {
   const banner = $('banner');
   banner.hidden = s.members.length === 0;
   if (s.members.length > 0) {
-    if (s.todayComplete) {
+    if (s.frozenToday) {
+      banner.className = 'banner frozen';
+      banner.textContent = `❄️ Frozen through ${s.freeze.until} — no solves required today.`;
+    } else if (s.todayComplete) {
       banner.className = 'banner good';
       banner.textContent = '✅ Everyone solved today — streak secured!';
     } else if (s.atRisk) {
@@ -143,40 +81,21 @@ function render(s) {
   $('today-date').textContent = `${s.today} · ${s.settings.timezone}`;
   $('solo-hint').hidden = staticMode || s.members.length !== 1;
 
-  // On GitHub Pages the page has no backend: roster changes go through the
-  // GitHub API (token pasted once), everything else links to GitHub forms.
-  document.body.classList.toggle('static', staticMode);
-  $('add-section').hidden = staticMode && !s.repoUrl;
+  // Static mirror: hide management, point at the repo secret instead.
+  $('add-section').hidden = staticMode;
   $('settings-section').hidden = staticMode;
-  const connected = staticMode && Boolean(getToken());
-  $('connect-card').hidden = !staticMode || connected;
-  $('add-form').hidden = staticMode && !connected;
-  const tokenStatus = $('token-status');
-  tokenStatus.hidden = !connected;
-  if (connected) {
-    tokenStatus.innerHTML =
-      'Connected to GitHub ✓ — changes run through your repo\'s "Manage buddies" workflow. <a href="#" id="token-disconnect">Disconnect</a>';
-    tokenStatus.querySelector('#token-disconnect').addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.removeItem(TOKEN_KEY);
-      render(latest);
-    });
-  }
-  if (staticMode && s.repoUrl) {
-    $('contacts-link').innerHTML =
-      `<a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">CONTACTS secret</a>`;
-  }
   const note = $('readonly-note');
   note.hidden = !staticMode;
   if (staticMode && s.generatedAt) {
     const mins = Math.max(0, Math.round((Date.now() - new Date(s.generatedAt)) / 60000));
     const age = mins < 1 ? 'just now' : `${mins} min ago`;
-    const links = s.repoUrl
-      ? ` · <a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">🔔 reminder contacts</a>` +
-        ` · <a href="${s.repoUrl}/edit/main/config.json" target="_blank" rel="noopener">⚙️ hours/timezone</a>`
+    const manage = s.repoUrl
+      ? ` · <a href="${s.repoUrl}/settings/secrets/actions" target="_blank" rel="noopener">⚙️ manage group (BUDDY_CONFIG secret)</a>`
       : '';
-    note.innerHTML = `Updated ${age}${links}`;
+    note.innerHTML = `Updated ${age}${manage}`;
   }
+
+  renderFreeze(s);
 
   // Member cards
   const container = $('members');
@@ -203,6 +122,42 @@ function render(s) {
     'Configure in .env — see .env.example.';
 }
 
+function renderFreeze(s) {
+  const card = $('freeze-card');
+  const active = $('freeze-active');
+  const offer = $('freeze-offer');
+  const hint = $('freeze-hint');
+  $('freeze-error').hidden = true;
+
+  if (s.freeze) {
+    card.hidden = false;
+    active.hidden = false;
+    offer.hidden = true;
+    hint.hidden = true;
+    $('freeze-until').textContent = s.freeze.until;
+    $('unfreeze-btn').hidden = staticMode;
+    return;
+  }
+  active.hidden = true;
+  if (staticMode || s.members.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  if (s.canFreeze?.ok) {
+    card.hidden = false;
+    offer.hidden = false;
+    hint.hidden = true;
+  } else if (s.todayComplete) {
+    // Solved, but too late in the day to freeze — say why.
+    card.hidden = false;
+    offer.hidden = true;
+    hint.textContent = `🧊 ${s.canFreeze?.reason ?? ''}`;
+    hint.hidden = false;
+  } else {
+    card.hidden = true;
+  }
+}
+
 function memberCard(m) {
   const el = document.createElement('div');
   el.className = 'member';
@@ -217,6 +172,10 @@ function memberCard(m) {
     detailClass = 'ok';
     detailText = `Solved ${m.solvedCountToday} today` +
       (m.lastSolve ? ` — latest: “${m.lastSolve.title}”` : '');
+  } else if (latest.frozenToday) {
+    dot = '❄️';
+    detailClass = 'pending';
+    detailText = 'Day off — streak is frozen';
   } else {
     dot = '⏳';
     detailClass = 'pending';
@@ -224,9 +183,7 @@ function memberCard(m) {
   }
 
   const controls = staticMode
-    ? getToken()
-      ? '<div class="controls"><button class="remove">remove</button></div>'
-      : ''
+    ? ''
     : `<div class="controls">
         <label class="toggle"><input type="checkbox" data-field="notifyEmail" ${m.notifyEmail ? 'checked' : ''}/> email</label>
         <label class="toggle"><input type="checkbox" data-field="notifySms" ${m.notifySms ? 'checked' : ''}/> text</label>
@@ -242,29 +199,7 @@ function memberCard(m) {
     </div>
     ${controls}`;
 
-  if (staticMode) {
-    el.querySelector('.remove')?.addEventListener('click', async () => {
-      if (!confirm(`Remove ${m.name} from the streak?`)) return;
-      const errEl = $('add-error');
-      const progress = (msg) => {
-        errEl.textContent = msg;
-        errEl.className = 'form-error progress';
-        errEl.hidden = false;
-      };
-      try {
-        await applyRosterChange(
-          { action: 'remove', leetcode_username: m.leetcodeUsername },
-          progress
-        );
-        errEl.hidden = true;
-      } catch (err) {
-        errEl.textContent = err.message;
-        errEl.className = 'form-error';
-        errEl.hidden = false;
-      }
-    });
-    return el;
-  }
+  if (staticMode) return el;
 
   el.querySelectorAll('input[data-field]').forEach((box) => {
     box.addEventListener('change', async () => {
@@ -296,35 +231,17 @@ $('add-form').addEventListener('submit', async (e) => {
   const btn = $('add-btn');
   const errEl = $('add-error');
   errEl.hidden = true;
-  errEl.className = 'form-error';
   btn.disabled = true;
-  btn.textContent = staticMode ? 'Sending to GitHub…' : 'Checking LeetCode…';
+  btn.textContent = 'Checking LeetCode…';
   try {
     const data = Object.fromEntries(new FormData(form));
-    if (staticMode) {
-      await applyRosterChange(
-        {
-          action: 'add',
-          leetcode_username: data.leetcodeUsername.trim(),
-          display_name: (data.name ?? '').trim(),
-        },
-        (msg) => {
-          errEl.textContent = msg;
-          errEl.className = 'form-error progress';
-          errEl.hidden = false;
-        }
-      );
-      errEl.hidden = true;
-    } else {
-      data.notifyEmail = form.notifyEmail.checked;
-      data.notifySms = form.notifySms.checked;
-      await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
-      await refresh();
-    }
+    data.notifyEmail = form.notifyEmail.checked;
+    data.notifySms = form.notifySms.checked;
+    await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
     form.reset();
+    await refresh();
   } catch (err) {
     errEl.textContent = err.message;
-    errEl.className = 'form-error';
     errEl.hidden = false;
   } finally {
     btn.disabled = false;
@@ -332,26 +249,29 @@ $('add-form').addEventListener('submit', async (e) => {
   }
 });
 
-$('token-save').addEventListener('click', async () => {
-  const errEl = $('token-error');
+$('freeze-btn').addEventListener('click', async () => {
+  const errEl = $('freeze-error');
+  const btn = $('freeze-btn');
   errEl.hidden = true;
-  const token = $('token-input').value.trim();
-  if (!token) {
-    errEl.textContent = 'Paste a token first.';
-    errEl.hidden = false;
-    return;
-  }
-  localStorage.setItem(TOKEN_KEY, token);
+  btn.disabled = true;
   try {
-    // Cheap permission check before declaring victory.
-    await gh('/actions/workflows/manage.yml/runs?per_page=1');
-    $('token-input').value = '';
-    render(latest);
+    await api('/api/freeze', {
+      method: 'POST',
+      body: JSON.stringify({ days: Number($('freeze-days').value) }),
+    });
+    await refresh();
   } catch (err) {
-    localStorage.removeItem(TOKEN_KEY);
     errEl.textContent = err.message;
     errEl.hidden = false;
+  } finally {
+    btn.disabled = false;
   }
+});
+
+$('unfreeze-btn').addEventListener('click', async () => {
+  if (!confirm('Unfreeze the streak? Daily solves are required again starting today.')) return;
+  await api('/api/freeze', { method: 'DELETE' }).catch((err) => alert(err.message));
+  refresh();
 });
 
 $('save-settings').addEventListener('click', async () => {

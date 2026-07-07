@@ -9,6 +9,7 @@
   --accent: #ffa116; /* leetcode orange */
   --good: #2cbb5d;
   --bad: #ef4743;
+  --ice: #66bbff;
 }
 
 body {
@@ -45,6 +46,24 @@ header { text-align: center; padding: 24px 0 8px; }
 .banner.good { background: rgba(44, 187, 93, 0.15); color: var(--good); }
 .banner.warn { background: rgba(255, 161, 22, 0.15); color: var(--accent); }
 .banner.dead { background: rgba(239, 71, 67, 0.15); color: var(--bad); }
+.banner.frozen { background: rgba(102, 187, 255, 0.15); color: var(--ice); }
+
+.flame.frozen { filter: hue-rotate(190deg) saturate(0.8); }
+
+#freeze-card { margin-top: 4px; }
+#freeze-card p { margin: 0 0 10px; }
+.freeze-controls { display: flex; align-items: flex-end; gap: 12px; }
+.freeze-controls label { flex: 0 0 110px; }
+input[type='number'] {
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
 
 h2 { font-size: 18px; margin: 32px 0 12px; }
 .date { color: var(--muted); font-weight: 400; font-size: 14px; }
@@ -126,13 +145,4 @@ button.secondary { background: transparent; color: var(--accent); border: 1px so
 .hint { color: var(--muted); font-size: 14px; }
 .hint a { color: var(--accent); text-decoration: none; }
 .hint a:hover { text-decoration: underline; }
-
-/* Field visibility per mode: local server vs static GitHub Pages mirror */
-.static-only { display: none; }
-body.static .local-only { display: none; }
-body.static .static-only { display: block; }
-
-#connect-card { margin-bottom: 12px; }
-#connect-card label { margin: 12px 0; }
-.form-error.progress { color: var(--accent); }
 .channel-status { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

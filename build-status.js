@@ -23,6 +23,8 @@ const publicStatus = {
   streak: status.streak,
   atRisk: status.atRisk,
   todayComplete: status.todayComplete,
+  freeze: status.freeze,
+  frozenToday: status.frozenToday,
   members: status.members.map((m) => ({
     name: m.name,
     leetcodeUsername: m.leetcodeUsername,

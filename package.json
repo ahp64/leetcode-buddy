@@ -9,7 +9,7 @@
     "dev": "node --watch server.js",
     "remind": "node remind.js",
     "build-status": "node build-status.js",
-    "sync-contacts": "gh secret set CONTACTS < data/contacts.json",
+    "sync-config": "gh secret set BUDDY_CONFIG < data/db.json",
     "test": "node --test test/"
   },
   "dependencies": {
