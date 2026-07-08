@@ -54,10 +54,119 @@ async function gh(path, opts = {}) {
     throw new Error('GitHub rejected the token — it may have expired. Disconnect and paste a new one.');
   }
   if (res.status === 403 || res.status === 404) {
-    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Contents" and "Actions" permissions both set to Read and write.');
+    throw new Error('The token can\'t do that — make sure it has "Contents", "Actions", and "Secrets" all set to Read and write for this repository.');
   }
   if (!res.ok) throw new Error(`GitHub API error (${res.status})`);
   return res.status === 204 ? null : res.json();
+}
+
+// --- Writing GitHub Actions secrets from the browser -----------------------
+// GitHub never accepts a secret's plaintext — it has to be sealed-box
+// encrypted (libsodium) against the repo's public key first, which is what
+// `gh secret set` does under the hood. The crypto library (~1MB) is only
+// loaded the first time it's actually needed, not on every page visit.
+// Pinned to exact versions with Subresource Integrity hashes, so the
+// browser refuses to run the script at all if the CDN ever serves anything
+// other than the exact bytes verified when these were pinned.
+const SODIUM_SCRIPTS = [
+  {
+    src: 'https://cdn.jsdelivr.net/npm/libsodium@0.8.4/dist/modules/libsodium.js',
+    integrity: 'sha384-3KUAqev6nUaNHDSTa/UjyEycVN8iMfq/UtzKf3ZDTuGSb+P3y9kMu/WCVqnLAxUB',
+  },
+  {
+    src: 'https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.15/dist/modules/libsodium-wrappers.js',
+    integrity: 'sha384-Ke/M093F2nkCtYtfjMexgZEIU3S3EqPl8ZLZC52CSafBgRHrvz5ToAuVGFrWCoGy',
+  },
+];
+
+let sodiumLoading = null;
+function loadSodium() {
+  if (sodiumLoading) return sodiumLoading;
+  const loadScript = ({ src, integrity }) =>
+    new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.integrity = integrity;
+      el.crossOrigin = 'anonymous';
+      el.onload = resolve;
+      el.onerror = () =>
+        reject(new Error(`Failed to load ${src} (blocked, offline, or integrity mismatch)`));
+      document.head.appendChild(el);
+    });
+  sodiumLoading = (async () => {
+    for (const script of SODIUM_SCRIPTS) await loadScript(script);
+    await window.sodium.ready;
+    return window.sodium;
+  })();
+  return sodiumLoading;
+}
+
+async function writeSecret(name, plaintext) {
+  const sodium = await loadSodium();
+  const { key, key_id } = await gh('/actions/secrets/public-key');
+  const sealed = sodium.crypto_box_seal(
+    sodium.from_string(plaintext),
+    sodium.from_base64(key, sodium.base64_variants.ORIGINAL)
+  );
+  await gh(`/actions/secrets/${name}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      encrypted_value: sodium.to_base64(sealed, sodium.base64_variants.ORIGINAL),
+      key_id,
+    }),
+  });
+}
+
+// --- Local shadow copy of BUDDY_CONFIG --------------------------------------
+// Secrets can never be read back via the API, so editing members/settings
+// from this page requires this browser to hold its own working copy — the
+// dashboard's public status.json only ever has names/usernames, never
+// emails/phones. On first use in a browser, the existing BUDDY_CONFIG value
+// has to be pasted in once to seed this; after that, edits made here keep it
+// in sync. If BUDDY_CONFIG is ever edited elsewhere (Settings, another
+// device), re-paste it here to pick up that change before editing again.
+const SHADOW_KEY = 'lcbuddy_shadow_config';
+const getShadowConfig = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SHADOW_KEY) ?? 'null');
+  } catch {
+    return null;
+  }
+};
+const setShadowConfig = (config) => localStorage.setItem(SHADOW_KEY, JSON.stringify(config));
+
+// Applies a new member list to `latest` for immediate display, preserving
+// today's solve status for members we already knew about (a brand new
+// member's status is genuinely unknown until the next scheduled check).
+function mergeOptimisticMembers(members) {
+  const prevById = new Map(latest.members.map((m) => [m.id, m]));
+  latest.members = members.map((m) => {
+    const id = m.leetcodeUsername.toLowerCase();
+    const prev = prevById.get(id);
+    return {
+      id,
+      name: m.name,
+      leetcodeUsername: m.leetcodeUsername,
+      notifyEmail: Boolean(m.notifyEmail),
+      notifySms: Boolean(m.notifySms),
+      solvedToday: prev?.solvedToday ?? false,
+      solvedCountToday: prev?.solvedCountToday ?? 0,
+      lastSolve: prev?.lastSolve ?? null,
+      error: prev?.error ?? null,
+    };
+  });
+  latest.todayComplete =
+    latest.members.length > 0 && latest.members.every((m) => m.solvedToday);
+}
+
+// Writes a full BUDDY_CONFIG value from the shadow copy, updates the shadow,
+// and reflects the change in the UI immediately.
+async function saveShadowConfig(config, message) {
+  await writeSecret('BUDDY_CONFIG', JSON.stringify(config, null, 2) + '\n');
+  setShadowConfig(config);
+  mergeOptimisticMembers(config.members);
+  nudgeRebuild();
+  reconcileFromCdn(latest.generatedAt);
 }
 
 // Writes freeze.json directly via GitHub's Contents API (browser-callable —
@@ -255,11 +364,17 @@ function render(s) {
   }
 
   $('today-date').textContent = `${s.today} · ${s.settings.timezone}`;
-  $('solo-hint').hidden = staticMode || s.members.length !== 1;
+  // Connected static visitors get the real "add a buddy" hint too, not just local.
+  const connected = staticMode && Boolean(getToken());
+  $('solo-hint').hidden = (staticMode && !connected) || s.members.length !== 1;
 
-  // Static mirror: hide management, point at the repo secret instead.
-  $('add-section').hidden = staticMode;
-  $('settings-section').hidden = staticMode;
+  // Static mirror: management needs a connected token (writes secrets
+  // directly); unconnected visitors are pointed at the repo secret instead.
+  $('add-section').hidden = staticMode && !connected;
+  $('settings-section').hidden = staticMode && !connected;
+  $('delivery-section').hidden = !connected;
+  $('remind-now').hidden = staticMode; // no static equivalent implemented
+  $('add-cors-hint').hidden = !connected;
   const note = $('readonly-note');
   note.hidden = !staticMode;
   if (staticMode && s.generatedAt) {
@@ -271,17 +386,23 @@ function render(s) {
     note.innerHTML = `Updated ${age}${manage}`;
   }
 
-  // No group configured yet: walk the visitor through setup right here,
-  // instead of leaving them at an empty page with only a small link.
-  const needsSetup = staticMode && s.members.length === 0;
-  $('setup-card').hidden = !needsSetup;
-  if (needsSetup && s.repoUrl) {
+  // A connected visitor manages the group right here (bootstrap + form
+  // below); unconnected visitors on an empty dashboard get the manual
+  // secret-editing walkthrough instead of a dead end.
+  const needsManualSetup = staticMode && !connected && s.members.length === 0;
+  $('setup-card').hidden = !needsManualSetup;
+  if (needsManualSetup && s.repoUrl) {
     $('setup-secrets-link').href = `${s.repoUrl}/settings/secrets/actions`;
     $('setup-run-link').href = `${s.repoUrl}/actions/workflows/streak.yml`;
     $('setup-readme-link').href = `${s.repoUrl}#readme`;
   }
-  // The regular member-list empty state only applies once a group exists.
-  $('members-section').hidden = needsSetup;
+  $('members-section').hidden = needsManualSetup;
+
+  // Add-form needs a loaded shadow copy before it can safely write
+  // BUDDY_CONFIG (otherwise it would clobber members it can't see).
+  const shadow = connected ? getShadowConfig() : null;
+  $('shadow-bootstrap').hidden = !(connected && !shadow);
+  $('add-form').hidden = connected && !shadow;
 
   renderFreeze(s);
 
@@ -289,9 +410,9 @@ function render(s) {
   const container = $('members');
   container.innerHTML = '';
   if (s.members.length === 0) {
-    container.innerHTML = staticMode
-      ? '<p class="hint">No one in the streak yet.</p>'
-      : '<p class="hint">No one in the streak yet. Add yourself and your buddy below. 👇</p>';
+    container.innerHTML = !staticMode || connected
+      ? '<p class="hint">No one in the streak yet. Add yourself and your buddy below. 👇</p>'
+      : '<p class="hint">No one in the streak yet.</p>';
   }
   for (const m of s.members) {
     container.appendChild(memberCard(m));
@@ -402,7 +523,8 @@ function memberCard(m) {
     detailText = 'Nothing solved yet today';
   }
 
-  const controls = staticMode
+  const connected = staticMode && Boolean(getToken());
+  const controls = staticMode && !connected
     ? ''
     : `<div class="controls">
         <label class="toggle"><input type="checkbox" data-field="notifyEmail" ${m.notifyEmail ? 'checked' : ''}/> email</label>
@@ -419,22 +541,72 @@ function memberCard(m) {
     </div>
     ${controls}`;
 
-  if (staticMode) return el;
+  if (staticMode && !connected) return el;
+
+  // Connected static edits go through the shadow copy of BUDDY_CONFIG
+  // (secrets can't be read back, so this browser's own cached copy is the
+  // only source of truth it has for who else is in the group).
+  const findInShadow = () => {
+    const shadow = getShadowConfig();
+    if (!shadow) {
+      alert('Load your existing BUDDY_CONFIG above first, then try again.');
+      return null;
+    }
+    const target = shadow.members.find(
+      (sm) => sm.leetcodeUsername.toLowerCase() === m.id
+    );
+    if (!target) {
+      alert(`${m.name} isn't in the loaded BUDDY_CONFIG copy — reload it above to pick up recent changes.`);
+      return null;
+    }
+    return { shadow, target };
+  };
 
   el.querySelectorAll('input[data-field]').forEach((box) => {
     box.addEventListener('change', async () => {
-      await api(`/api/members/${m.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ [box.dataset.field]: box.checked }),
-      }).catch((err) => alert(err.message));
+      if (staticMode) {
+        const found = findInShadow();
+        if (!found) {
+          box.checked = !box.checked;
+          return;
+        }
+        found.target[box.dataset.field] = box.checked;
+        try {
+          await saveShadowConfig(found.shadow, `Update ${m.name}`);
+          render(latest);
+        } catch (err) {
+          box.checked = !box.checked;
+          alert(err.message);
+        }
+      } else {
+        await api(`/api/members/${m.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ [box.dataset.field]: box.checked }),
+        }).catch((err) => alert(err.message));
+      }
     });
   });
   el.querySelector('.remove').addEventListener('click', async () => {
     if (!confirm(`Remove ${m.name} from the streak?`)) return;
-    await api(`/api/members/${m.id}`, { method: 'DELETE' }).catch((err) =>
-      alert(err.message)
-    );
-    refresh();
+    if (staticMode) {
+      const shadow = getShadowConfig();
+      if (!shadow) return alert('Load your existing BUDDY_CONFIG above first.');
+      const config = {
+        ...shadow,
+        members: shadow.members.filter((sm) => sm.leetcodeUsername.toLowerCase() !== m.id),
+      };
+      try {
+        await saveShadowConfig(config, `Remove ${m.name}`);
+        render(latest);
+      } catch (err) {
+        alert(err.message);
+      }
+    } else {
+      await api(`/api/members/${m.id}`, { method: 'DELETE' }).catch((err) =>
+        alert(err.message)
+      );
+      refresh();
+    }
   });
   return el;
 }
@@ -452,14 +624,40 @@ $('add-form').addEventListener('submit', async (e) => {
   const errEl = $('add-error');
   errEl.hidden = true;
   btn.disabled = true;
-  btn.textContent = 'Checking LeetCode…';
   try {
     const data = Object.fromEntries(new FormData(form));
-    data.notifyEmail = form.notifyEmail.checked;
-    data.notifySms = form.notifySms.checked;
-    await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
+    const username = data.leetcodeUsername.trim();
+
+    if (staticMode && getToken()) {
+      btn.textContent = 'Saving to GitHub…';
+      const shadow = getShadowConfig();
+      if (!shadow) throw new Error('Load your existing BUDDY_CONFIG above first.');
+      if (
+        shadow.members.some(
+          (m) => m.leetcodeUsername.toLowerCase() === username.toLowerCase()
+        )
+      ) {
+        throw new Error(`${username} is already in the group.`);
+      }
+      const member = {
+        name: (data.name ?? '').trim() || username,
+        leetcodeUsername: username,
+        email: (data.email ?? '').trim(),
+        phone: (data.phone ?? '').trim(),
+        notifyEmail: form.notifyEmail.checked,
+        notifySms: form.notifySms.checked,
+      };
+      const config = { ...shadow, members: [...shadow.members, member] };
+      await saveShadowConfig(config, `Add ${username}`);
+    } else {
+      btn.textContent = 'Checking LeetCode…';
+      data.notifyEmail = form.notifyEmail.checked;
+      data.notifySms = form.notifySms.checked;
+      await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
+      latest = await api('/api/status');
+    }
     form.reset();
-    await refresh();
+    render(latest);
   } catch (err) {
     errEl.textContent = err.message;
     errEl.hidden = false;
@@ -554,8 +752,12 @@ $('token-save').addEventListener('click', async () => {
   localStorage.setItem(TOKEN_KEY, token);
   try {
     // Cheap permission check before declaring victory — also doubles as the
-    // first sha fetch a freeze/unfreeze write would need anyway.
-    await gh('/contents/freeze.json?ref=main');
+    // first sha fetch a freeze/unfreeze write, and the first public-key
+    // fetch a secret write, would each need anyway.
+    await Promise.all([
+      gh('/contents/freeze.json?ref=main'),
+      gh('/actions/secrets/public-key'),
+    ]);
     $('token-input').value = '';
     render(latest);
   } catch (err) {
@@ -565,24 +767,121 @@ $('token-save').addEventListener('click', async () => {
   }
 });
 
+$('bootstrap-load').addEventListener('click', () => {
+  const errEl = $('bootstrap-error');
+  errEl.hidden = true;
+  try {
+    const config = JSON.parse($('bootstrap-input').value);
+    if (!Array.isArray(config.members)) throw new Error('missing a "members" array');
+    if (!config.settings?.timezone) throw new Error('missing "settings.timezone"');
+    setShadowConfig(config);
+    $('bootstrap-input').value = '';
+    mergeOptimisticMembers(config.members);
+    render(latest);
+  } catch (err) {
+    errEl.textContent = `That doesn't look like a valid BUDDY_CONFIG value: ${err.message}`;
+    errEl.hidden = false;
+  }
+});
+
+$('bootstrap-fresh').addEventListener('click', () => {
+  if (
+    !confirm(
+      "Start a brand new, empty group? Only do this if BUDDY_CONFIG isn't already set to something you want to keep."
+    )
+  ) {
+    return;
+  }
+  setShadowConfig({
+    settings: {
+      timezone: latest.timezone || latest.settings?.timezone || 'UTC',
+      reminderHours: [12, 18, 21],
+    },
+    members: [],
+  });
+  render(latest);
+});
+
+$('save-credentials').addEventListener('click', async () => {
+  const msg = $('credentials-msg');
+  const btn = $('save-credentials');
+  const fieldIds = [
+    'smtp-host',
+    'smtp-port',
+    'smtp-user',
+    'smtp-pass',
+    'smtp-from',
+    'twilio-sid',
+    'twilio-token',
+    'twilio-from',
+  ];
+  const secretNames = {
+    'smtp-host': 'SMTP_HOST',
+    'smtp-port': 'SMTP_PORT',
+    'smtp-user': 'SMTP_USER',
+    'smtp-pass': 'SMTP_PASS',
+    'smtp-from': 'SMTP_FROM',
+    'twilio-sid': 'TWILIO_ACCOUNT_SID',
+    'twilio-token': 'TWILIO_AUTH_TOKEN',
+    'twilio-from': 'TWILIO_FROM',
+  };
+  const toWrite = fieldIds
+    .map((id) => [id, $(id).value.trim()])
+    .filter(([, value]) => value);
+
+  msg.hidden = true;
+  if (toWrite.length === 0) {
+    msg.textContent = 'Nothing to save — fill in at least one field.';
+    msg.className = 'form-error';
+    msg.hidden = false;
+    return;
+  }
+  btn.disabled = true;
+  try {
+    for (const [id, value] of toWrite) {
+      await writeSecret(secretNames[id], value);
+    }
+    fieldIds.forEach((id) => ($(id).value = ''));
+    msg.textContent = `Saved ✓ (${toWrite.map(([id]) => secretNames[id]).join(', ')})`;
+    msg.className = 'form-error ok';
+    msg.hidden = false;
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = 'form-error';
+    msg.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $('save-settings').addEventListener('click', async () => {
   const msg = $('settings-msg');
   msg.hidden = true;
   try {
-    await api('/api/settings', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        timezone: $('tz-input').value.trim(),
-        reminderHours: $('hours-input')
-          .value.split(',')
-          .map((h) => h.trim())
-          .filter(Boolean),
-      }),
-    });
+    const timezone = $('tz-input').value.trim();
+    const reminderHours = $('hours-input')
+      .value.split(',')
+      .map((h) => h.trim())
+      .filter(Boolean)
+      .map(Number);
+
+    if (staticMode && getToken()) {
+      const shadow = getShadowConfig();
+      if (!shadow) throw new Error('Load your existing BUDDY_CONFIG above first.');
+      const config = { ...shadow, settings: { timezone, reminderHours } };
+      await writeSecret('BUDDY_CONFIG', JSON.stringify(config, null, 2) + '\n');
+      setShadowConfig(config);
+      latest.settings = { timezone, reminderHours };
+      nudgeRebuild();
+      reconcileFromCdn(latest.generatedAt);
+      render(latest); // reflect the optimistic update now, not the stale CDN copy
+    } else {
+      await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone, reminderHours }) });
+      refresh();
+    }
     msg.textContent = 'Saved ✓';
     msg.className = 'form-error ok';
     msg.hidden = false;
-    refresh();
   } catch (err) {
     msg.textContent = err.message;
     msg.className = 'form-error';

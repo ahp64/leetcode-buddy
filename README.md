@@ -217,24 +217,40 @@ The same instructions are reproduced below for reference:
    the whole token to read-only and hides the write permissions.
 3. Under **Permissions → Repository permissions** you'll see a long list of
    specific permissions, each with its own **Access** dropdown on the
-   right. Set **two** rows to **Read and write**: **Contents** ("Repository
-   contents, files, branches…" — lets the button commit the change directly)
-   and **Actions** ("Workflows, workflow runs and artifacts" — used to nudge
-   a faster public refresh after committing). Leave every other row on "No
+   right. Set **three** rows to **Read and write**: **Contents**
+   ("Repository contents, files, branches…" — commits freeze/unfreeze and
+   the member list directly), **Actions** ("Workflows, workflow runs and
+   artifacts" — nudges a faster public refresh after each change), and
+   **Secrets** (lets the page update `BUDDY_CONFIG` and, if you use it,
+   your email/text delivery credentials). Leave every other row on "No
    access" — *Metadata: Read-only* switches on by itself, which is normal
    and required.
 4. **Generate token**, copy the `github_pat_…` value (it's shown once), and
    paste it into the dashboard's Connect panel.
 
-⚠️ Because this token needs **Contents: Read and write**, it can modify
-*any* non-workflow file in the repo, not just `freeze.json` — a bigger
-blast radius than a narrower Actions-only token would have. (GitHub still
-gates edits to `.github/workflows/*.yml` behind a separate permission, so it
-can't rewrite the automation itself.) Only paste it into a browser/device
-you trust; the "Disconnect" link in the freeze card removes it immediately. If you'd rather not grant that scope at all, skip the token —
-the Freeze/Unfreeze buttons then fall back to deep-linking to GitHub's "Run
-workflow" form, which needs no token and (for Freeze) always re-checks live
-LeetCode data through the workflow before committing.
+⚠️ This combination is broad: **Contents** can modify *any* non-workflow
+file in the repo, and **Secrets** can silently overwrite any secret —
+including your SMTP/Twilio credentials, which control where reminders
+actually get sent. (GitHub never lets a token, or anyone, read a secret's
+*existing* value back, so this is write-only exposure — a leak can't reveal
+past PII, only let someone inject wrong data or redirect future
+reminders. GitHub also still gates edits to `.github/workflows/*.yml`
+behind a separate permission, so a leaked token can't rewrite the
+automation itself.) Only paste it into a browser/device you trust; the
+"Disconnect" link in the freeze card removes it immediately. If you'd
+rather not grant that scope at all, skip the token — the Freeze/Unfreeze
+buttons fall back to deep-linking to GitHub's "Run workflow" form (which
+needs no token and, for Freeze, always re-checks live LeetCode data), and
+member/settings/credential management stays manual via the Settings page.
+
+Connecting also loads a small open-source encryption library
+([libsodium](https://doc.libsodium.org/)) from a CDN the first time the
+page needs to write a secret — GitHub's Secrets API only ever accepts
+values encrypted client-side against the repo's public key, the same thing
+`gh secret set` does. The two script files are pinned to exact versions
+with Subresource Integrity hashes, so the browser refuses to run them if
+the CDN ever serves anything other than the exact bytes this project
+shipped with.
 
 **This token lives only in the browser you paste it into** (localStorage —
 never synced, never sent anywhere, never stored in the repo). One-click
@@ -253,6 +269,31 @@ there too:
   there just fall back to deep-linking to GitHub's "Run workflow" form,
   which always works and needs no token — so this step is purely a
   convenience upgrade, never required.
+
+### Managing the group and delivery credentials from the hosted page
+
+Once connected, the "Add a person" and "Reminders & settings" sections
+become fully usable on the hosted dashboard too — not just a link to
+Settings.
+
+**The catch, and why it needs one extra step:** GitHub never lets *anyone*
+read a secret's value back, including this token. So the browser has no way
+to know who's already in `BUDDY_CONFIG` unless it keeps its own copy. The
+first time you use this on a given browser, it'll ask you to paste in your
+current `BUDDY_CONFIG` value (or say "this is a brand new group" if it's not
+set yet) — after that, edits made here stay in sync automatically. If you
+ever edit `BUDDY_CONFIG` a different way (directly in Settings, or from a
+different browser/device), re-paste the current value here before editing
+from this page again, or your next save could overwrite that other change.
+
+From there: adding a person writes straight to `BUDDY_CONFIG` (though this
+page can't verify the LeetCode username is real — no CORS access to
+leetcode.com from the browser — a typo just shows as ❓ on the dashboard
+afterward, same as it would anywhere else). Removing someone or toggling
+their email/text reminders works the same way. A **Delivery credentials**
+section appears too, for SMTP/Twilio — those fields are always blank (again,
+write-only) and only the ones you actually fill in get written, so leaving
+the rest empty doesn't touch whatever's already set.
 
 ## Running locally (optional, for developers)
 

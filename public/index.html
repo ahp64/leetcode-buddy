@@ -83,23 +83,33 @@
               <em>Only select repositories</em> → this repo (not “Public
               repositories” — that forces read-only). Then in the
               <strong>Repository permissions</strong> list, set
-              <strong>two</strong> rows to <strong>Read and write</strong>:
-              <strong>Contents</strong> (“Repository contents, files,
-              branches…” — lets the button commit the freeze/unfreeze change
-              directly, so it applies instantly) and <strong>Actions</strong>
-              (“Workflows, workflow runs and artifacts” — used to nudge a
-              faster public refresh after committing). Leave every other row
-              on “No access” (Metadata: Read-only adds itself — that's
-              normal). Generate, copy the <code>github_pat_…</code>, paste it
-              here. It is stored only in this browser — for one-click
-              controls on your buddy's device too, they'll need their own
-              token pasted in there (or you can share yours).
+              <strong>three</strong> rows to <strong>Read and write</strong>:
+              <strong>Contents</strong> (commits freeze/unfreeze and, if you
+              use it, the member list, directly — so changes apply
+              instantly), <strong>Actions</strong> (nudges a faster public
+              refresh after each change), and <strong>Secrets</strong>
+              (lets this page update <code>BUDDY_CONFIG</code> and, if you
+              fill them in below, your email/text delivery credentials).
+              Leave every other row on “No access” (Metadata: Read-only adds
+              itself — that's normal). Generate, copy the
+              <code>github_pat_…</code>, paste it here. It is stored only in
+              this browser — for one-click controls on your buddy's device
+              too, they'll need their own token pasted in there (or you can
+              share yours).
             </p>
-            <p class="hint">⚠️ Because <strong>Contents: Read and write</strong>
-              covers the whole repo, not just <code>freeze.json</code>, a
-              leaked token could be used to change any non-workflow file
-              here — bigger than the old Actions-only scope. Only paste this
-              into a browser/device you trust.</p>
+            <p class="hint">⚠️ This combination is broad: <strong>Contents</strong>
+              can change any non-workflow file in the repo, and
+              <strong>Secrets</strong> can silently overwrite any secret —
+              including your SMTP/Twilio credentials, which control where
+              reminders actually get sent (GitHub never lets a token, or
+              anyone, read a secret's existing value back, so this is
+              write-only exposure — a leak can't reveal past PII). Only
+              paste this into a browser/device you trust; skip it entirely
+              to keep using the deep-link buttons and Settings page instead,
+              which need no token at all. This page also loads a small
+              open-source encryption library
+              (<a href="https://doc.libsodium.org/" target="_blank" rel="noopener">libsodium</a>)
+              from a CDN the first time it needs to write a secret.</p>
             <label>GitHub token
               <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
             </label>
@@ -120,6 +130,20 @@
 
     <section id="add-section">
       <h2>Add a person</h2>
+      <div class="card" id="shadow-bootstrap" hidden>
+        <p>To add or edit people from this page, this browser needs a
+          working copy of your current <code>BUDDY_CONFIG</code> secret
+          first — GitHub never lets any client read a secret's value back,
+          so there's no way to know who's already in it otherwise.</p>
+        <label>Paste your current <code>BUDDY_CONFIG</code> value
+          <textarea id="bootstrap-input" rows="7" placeholder='{"settings": {"timezone": "...", "reminderHours": [...]}, "members": [...]}'></textarea>
+        </label>
+        <div class="settings-actions">
+          <button id="bootstrap-load">Load it</button>
+          <button id="bootstrap-fresh" class="secondary">This is a brand new group — start empty</button>
+        </div>
+        <p class="form-error" id="bootstrap-error" hidden></p>
+      </div>
       <form id="add-form" class="card">
         <div class="grid">
           <label>LeetCode username *
@@ -140,6 +164,9 @@
           <label class="toggle"><input type="checkbox" name="notifySms" /> Text reminders</label>
         </div>
         <button type="submit" id="add-btn">Add to streak</button>
+        <p class="hint" id="add-cors-hint" hidden>Note: this page can't verify
+          the LeetCode username is real (the browser can't reach
+          leetcode.com) — a typo will just show as ❓ on the dashboard.</p>
         <p class="form-error" id="add-error" hidden></p>
       </form>
     </section>
@@ -161,6 +188,33 @@
           <button id="remind-now" class="secondary">Send reminders now</button>
         </div>
         <p class="form-error" id="settings-msg" hidden></p>
+      </div>
+    </section>
+
+    <section id="delivery-section" hidden>
+      <h2>Delivery credentials</h2>
+      <div class="card">
+        <p class="hint">Optional — lets reminders actually send instead of
+          only logging. These write straight to the matching repo secrets;
+          fields left blank are untouched (existing values, if any, keep
+          working — this page can't show you what's already set, since
+          secrets can't be read back).</p>
+        <p class="hint"><strong>Email</strong> (e.g. a Gmail app password):</p>
+        <div class="grid">
+          <label>SMTP host <input id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" /></label>
+          <label>SMTP port <input id="smtp-port" placeholder="587" autocomplete="off" /></label>
+          <label>SMTP user <input id="smtp-user" placeholder="you@gmail.com" autocomplete="off" /></label>
+          <label>SMTP password <input id="smtp-pass" type="password" placeholder="app password" autocomplete="off" /></label>
+          <label>From address <input id="smtp-from" placeholder="you@gmail.com" autocomplete="off" /></label>
+        </div>
+        <p class="hint"><strong>Text</strong> (via Twilio):</p>
+        <div class="grid">
+          <label>Account SID <input id="twilio-sid" placeholder="AC…" autocomplete="off" /></label>
+          <label>Auth token <input id="twilio-token" type="password" autocomplete="off" /></label>
+          <label>From number <input id="twilio-from" placeholder="+1555…" autocomplete="off" /></label>
+        </div>
+        <button id="save-credentials">Save credentials</button>
+        <p class="form-error" id="credentials-msg" hidden></p>
       </div>
     </section>
   </main>
