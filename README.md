@@ -194,8 +194,13 @@ commit.
 
 **Optional: true one-click controls on the hosted page.** The freeze card
 offers "⚡ Connect GitHub" — paste in a token once, and the Freeze/Unfreeze
-buttons run the workflows directly from the page, no trip to the Actions
-tab. (The same earn-it rules are still enforced by the workflow itself.)
+buttons commit the change directly from the page (no trip to the Actions
+tab, no waiting on a workflow run — it applies in about a second). Unfreeze
+has no rule to bypass, so it's always safe to apply instantly. Freeze does
+have a rule ("everyone solved today, 8+ hours before midnight"), which gets
+checked against the dashboard's last-loaded data (up to ~15 minutes stale,
+since a browser can't poll LeetCode itself — see below) rather than a
+guaranteed-live recheck.
 
 **Follow the walkthrough on the dashboard itself to create and paste in
 that token** — click "⚡ Connect GitHub" in the freeze card and it walks you
@@ -212,17 +217,24 @@ The same instructions are reproduced below for reference:
    the whole token to read-only and hides the write permissions.
 3. Under **Permissions → Repository permissions** you'll see a long list of
    specific permissions, each with its own **Access** dropdown on the
-   right. Find the **Actions** row ("Workflows, workflow runs and
-   artifacts") and set it to **Read and write**. Leave every other row on
-   "No access" — you don't need *Workflows* (editing workflow files) or
-   *Contents* (repo code), and *Metadata: Read-only* switches on by itself,
-   which is normal and required.
+   right. Set **two** rows to **Read and write**: **Contents** ("Repository
+   contents, files, branches…" — lets the button commit the change directly)
+   and **Actions** ("Workflows, workflow runs and artifacts" — used to nudge
+   a faster public refresh after committing). Leave every other row on "No
+   access" — *Metadata: Read-only* switches on by itself, which is normal
+   and required.
 4. **Generate token**, copy the `github_pat_…` value (it's shown once), and
    paste it into the dashboard's Connect panel.
 
-Scoped this way, the token can only trigger and read workflow runs on this
-one repo — it can't touch code, secrets, or any other repository, so even
-the worst-case leak from your browser is somebody toggling your freeze.
+⚠️ Because this token needs **Contents: Read and write**, it can modify
+*any* non-workflow file in the repo, not just `freeze.json` — a bigger
+blast radius than a narrower Actions-only token would have. (GitHub still
+gates edits to `.github/workflows/*.yml` behind a separate permission, so it
+can't rewrite the automation itself.) Only paste it into a browser/device
+you trust; the "Disconnect" link in the freeze card removes it immediately. If you'd rather not grant that scope at all, skip the token —
+the Freeze/Unfreeze buttons then fall back to deep-linking to GitHub's "Run
+workflow" form, which needs no token and (for Freeze) always re-checks live
+LeetCode data through the workflow before committing.
 
 **This token lives only in the browser you paste it into** (localStorage —
 never synced, never sent anywhere, never stored in the repo). One-click

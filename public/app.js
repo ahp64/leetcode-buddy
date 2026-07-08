@@ -54,10 +54,75 @@ async function gh(path, opts = {}) {
     throw new Error('GitHub rejected the token — it may have expired. Disconnect and paste a new one.');
   }
   if (res.status === 403 || res.status === 404) {
-    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Actions" permission set to Read and write.');
+    throw new Error('The token can\'t do that — make sure it has access to this repository with the "Contents" and "Actions" permissions both set to Read and write.');
   }
   if (!res.ok) throw new Error(`GitHub API error (${res.status})`);
   return res.status === 204 ? null : res.json();
+}
+
+// Writes freeze.json directly via GitHub's Contents API (browser-callable —
+// api.github.com sends permissive CORS headers, unlike leetcode.com). This
+// needs the token's "Contents" permission, not just "Actions": the browser
+// commits the file itself instead of asking a workflow to do it, so both
+// freeze and unfreeze apply in ~1 request round trip instead of waiting on a
+// workflow run.
+function toBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function writeFreezeFile(newFreezeValue, message) {
+  const { sha } = await gh('/contents/freeze.json?ref=main');
+  const content = toBase64(JSON.stringify({ freeze: newFreezeValue }, null, 2) + '\n');
+  await gh('/contents/freeze.json', {
+    method: 'PUT',
+    body: JSON.stringify({ message, content, sha, branch: 'main' }),
+  });
+}
+
+// Client-side port of lib/status.js's freezeEligibility, run against the
+// already-loaded (possibly up to ~15 min stale) status snapshot — the
+// browser can't re-poll LeetCode itself (no CORS from leetcode.com), so this
+// trusts the last scheduled check rather than guaranteeing a live one.
+const FREEZE_MIN_HOURS_LEFT = 8;
+const FREEZE_MAX_DAYS = 14;
+
+function hoursUntilMidnightClient(timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return 24 - (get('hour') % 24) - get('minute') / 60;
+}
+
+function freezeEligibilityClient(s) {
+  if (s.members.length === 0) return { ok: false, reason: 'No members yet.' };
+  if (s.freeze && s.freeze.until >= s.today) {
+    return { ok: false, reason: `Already frozen through ${s.freeze.until}.` };
+  }
+  if (!s.todayComplete) {
+    return { ok: false, reason: 'Everyone must solve today before you can freeze.' };
+  }
+  const hoursLeft = hoursUntilMidnightClient(s.timezone);
+  if (hoursLeft < FREEZE_MIN_HOURS_LEFT) {
+    return {
+      ok: false,
+      reason: `Freezing closes ${FREEZE_MIN_HOURS_LEFT}h before midnight — too late for today.`,
+    };
+  }
+  return { ok: true, reason: null };
+}
+
+// Best-effort nudge so other visitors' copies catch up sooner than the next
+// 15-min scheduled tick. Never blocks or surfaces an error — the clicking
+// user's own view is already correct via the optimistic update either way.
+function nudgeRebuild() {
+  gh('/actions/workflows/streak.yml/dispatches', {
+    method: 'POST',
+    body: JSON.stringify({ ref: 'main' }),
+  }).catch(() => {});
 }
 
 // Dispatch a workflow and follow its run to completion. Once the run
@@ -415,7 +480,19 @@ $('freeze-btn').addEventListener('click', async () => {
   const days = Number($('freeze-days').value);
   btn.disabled = true;
   await freezeAction(async (progress) => {
-    if (staticMode) {
+    if (staticMode && getToken()) {
+      // Instant path: recheck eligibility against the loaded snapshot (up to
+      // ~15 min stale — the browser can't re-poll LeetCode), then commit
+      // freeze.json directly instead of dispatching a workflow.
+      const eligibility = freezeEligibilityClient(latest);
+      if (!eligibility.ok) throw new Error(eligibility.reason);
+      progress('Writing to GitHub…');
+      const freeze = { from: addDays(latest.today, 1), until: addDays(latest.today, days) };
+      await writeFreezeFile(freeze, `Freeze streak (${days}d)`);
+      latest.freeze = freeze;
+      nudgeRebuild();
+      reconcileFromCdn(latest.generatedAt);
+    } else if (staticMode) {
       await runWorkflow('freeze.yml', { days: String(days) }, progress, (s) => {
         // Freeze starts tomorrow, so today isn't frozen yet — the card just
         // flips to the active-freeze state.
@@ -434,12 +511,22 @@ $('unfreeze-btn').addEventListener('click', async () => {
   const btn = $('unfreeze-btn');
   btn.disabled = true;
   await freezeAction(async (progress) => {
-    if (staticMode) {
+    if (staticMode && getToken()) {
+      // Unfreeze has no eligibility rule to bypass, so the instant path is
+      // always safe here.
+      progress('Writing to GitHub…');
+      await writeFreezeFile(null, 'Unfreeze streak');
+      latest.freeze = null;
+      latest.frozenToday = false;
+      // Mirror computeStreak: an unfrozen day with an unsolved member and a
+      // running streak is back at risk. Reconcile fixes it either way.
+      latest.atRisk = latest.streak > 0 && !latest.todayComplete;
+      nudgeRebuild();
+      reconcileFromCdn(latest.generatedAt);
+    } else if (staticMode) {
       await runWorkflow('unfreeze.yml', undefined, progress, (s) => {
         s.freeze = null;
         s.frozenToday = false;
-        // Mirror computeStreak: an unfrozen day with an unsolved member and a
-        // running streak is back at risk. Reconcile fixes it either way.
         s.atRisk = s.streak > 0 && !s.todayComplete;
       });
     } else {
@@ -466,8 +553,9 @@ $('token-save').addEventListener('click', async () => {
   }
   localStorage.setItem(TOKEN_KEY, token);
   try {
-    // Cheap permission check before declaring victory.
-    await gh('/actions/workflows?per_page=1');
+    // Cheap permission check before declaring victory — also doubles as the
+    // first sha fetch a freeze/unfreeze write would need anyway.
+    await gh('/contents/freeze.json?ref=main');
     $('token-input').value = '';
     render(latest);
   } catch (err) {

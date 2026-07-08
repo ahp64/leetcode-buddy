@@ -82,16 +82,24 @@
               under <strong>Repository access</strong> choose
               <em>Only select repositories</em> → this repo (not “Public
               repositories” — that forces read-only). Then in the
-              <strong>Repository permissions</strong> list, find the
-              <strong>Actions</strong> row (“Workflows, workflow runs and
-              artifacts”) and set its <strong>Access</strong> dropdown to
-              <strong>Read and write</strong>. Leave every other row on “No
-              access” (Metadata: Read-only adds itself — that's normal).
-              Generate, copy the <code>github_pat_…</code>, paste it here.
-              It is stored only in this browser — for one-click controls on
-              your buddy's device too, they'll need their own token pasted
-              in there (or you can share yours).
+              <strong>Repository permissions</strong> list, set
+              <strong>two</strong> rows to <strong>Read and write</strong>:
+              <strong>Contents</strong> (“Repository contents, files,
+              branches…” — lets the button commit the freeze/unfreeze change
+              directly, so it applies instantly) and <strong>Actions</strong>
+              (“Workflows, workflow runs and artifacts” — used to nudge a
+              faster public refresh after committing). Leave every other row
+              on “No access” (Metadata: Read-only adds itself — that's
+              normal). Generate, copy the <code>github_pat_…</code>, paste it
+              here. It is stored only in this browser — for one-click
+              controls on your buddy's device too, they'll need their own
+              token pasted in there (or you can share yours).
             </p>
+            <p class="hint">⚠️ Because <strong>Contents: Read and write</strong>
+              covers the whole repo, not just <code>freeze.json</code>, a
+              leaked token could be used to change any non-workflow file
+              here — bigger than the old Actions-only scope. Only paste this
+              into a browser/device you trust.</p>
             <label>GitHub token
               <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
             </label>
