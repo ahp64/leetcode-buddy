@@ -1,6 +1,11 @@
 # The "Unfreeze streak" button: Actions tab → Unfreeze streak → Run workflow
-# (the dashboard links straight here). Ends the freeze immediately — daily
-# solves are required again starting today — and redeploys the dashboard.
+# (the dashboard links straight here, or dispatches it via the API when you
+# connect a token). Ends the freeze immediately — daily solves are required
+# again starting today — and redeploys the dashboard.
+#
+# Everything runs in one job so there's only a single runner startup: the
+# scheduled streak.yml still owns the hourly rebuild, but freeze/unfreeze
+# inline the same build+deploy steps to shave the second cold job.
 name: Unfreeze streak
 
 on:
@@ -8,10 +13,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   unfreeze:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,6 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - run: npm ci
 
@@ -33,11 +48,19 @@ jobs:
           git add freeze.json
           git diff --cached --quiet || { git commit -m "Unfreeze streak"; git push; }
 
-  publish:
-    needs: unfreeze
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/streak.yml
-    secrets: inherit
+      - name: Restore config from secret
+        env:
+          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
+        run: |
+          mkdir -p data
+          [ -n "$BUDDY_CONFIG" ] && printf '%s' "$BUDDY_CONFIG" > data/db.json || true
+
+      - name: Build dashboard
+        run: node build-status.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

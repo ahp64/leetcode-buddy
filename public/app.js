@@ -60,9 +60,13 @@ async function gh(path, opts = {}) {
   return res.status === 204 ? null : res.json();
 }
 
-// Dispatch a workflow, follow its run to completion, then wait for the
-// redeployed dashboard data to land.
-async function runWorkflow(file, inputs, progress) {
+// Dispatch a workflow and follow its run to completion. Once the run
+// succeeds the freeze state has definitively changed, so we apply the known
+// result to the UI immediately (via `optimistic`) rather than blocking on
+// GitHub Pages' CDN, which can take another 10–40s to serve the rebuilt
+// status.json. A background reconcile picks up the authoritative copy once
+// the CDN catches up.
+async function runWorkflow(file, inputs, progress, optimistic) {
   const startedAt = Date.now();
   progress('Asking GitHub…');
   await gh(`/actions/workflows/${file}/dispatches`, {
@@ -70,11 +74,11 @@ async function runWorkflow(file, inputs, progress) {
     body: JSON.stringify(inputs ? { ref: 'main', inputs } : { ref: 'main' }),
   });
 
-  progress('GitHub is applying it (takes about a minute)…');
+  progress('GitHub is applying it…');
   let run = null;
   const deadline = Date.now() + 5 * 60 * 1000;
   while (Date.now() < deadline) {
-    await sleep(6000);
+    await sleep(4000);
     const { workflow_runs } = await gh(`/actions/workflows/${file}/runs?per_page=1`);
     const candidate = workflow_runs?.[0];
     if (!candidate || new Date(candidate.created_at).getTime() < startedAt - 30000) continue;
@@ -88,12 +92,27 @@ async function runWorkflow(file, inputs, progress) {
     throw new Error(`GitHub refused the change (see the log: ${run.html_url})`);
   }
 
-  progress('Done — refreshing dashboard…');
-  const before = latest.generatedAt;
-  for (let i = 0; i < 15; i++) {
+  // Run succeeded → reflect the new state now; reconcile with the CDN later.
+  optimistic?.(latest);
+  reconcileFromCdn(latest.generatedAt);
+}
+
+// Poll the published status.json in the background until its generatedAt
+// advances past `before`, then repaint with the authoritative data.
+async function reconcileFromCdn(before) {
+  for (let i = 0; i < 30; i++) {
     await sleep(4000);
-    latest = await loadStatic();
-    if (latest.generatedAt !== before) break;
+    if (busy) continue; // a newer action is in flight; let it own the state
+    try {
+      const fresh = await loadStatic();
+      if (fresh.generatedAt !== before) {
+        latest = fresh;
+        render(latest);
+        return;
+      }
+    } catch {
+      /* transient; keep trying */
+    }
   }
 }
 
@@ -373,13 +392,23 @@ $('add-form').addEventListener('submit', async (e) => {
   }
 });
 
+const addDays = (key, n) => {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return dt.toISOString().slice(0, 10);
+};
+
 $('freeze-btn').addEventListener('click', async () => {
   const btn = $('freeze-btn');
   const days = Number($('freeze-days').value);
   btn.disabled = true;
   await freezeAction(async (progress) => {
     if (staticMode) {
-      await runWorkflow('freeze.yml', { days: String(days) }, progress);
+      await runWorkflow('freeze.yml', { days: String(days) }, progress, (s) => {
+        // Freeze starts tomorrow, so today isn't frozen yet — the card just
+        // flips to the active-freeze state.
+        s.freeze = { from: addDays(s.today, 1), until: addDays(s.today, days) };
+      });
     } else {
       await api('/api/freeze', { method: 'POST', body: JSON.stringify({ days }) });
       latest = await api('/api/status');
@@ -394,7 +423,13 @@ $('unfreeze-btn').addEventListener('click', async () => {
   btn.disabled = true;
   await freezeAction(async (progress) => {
     if (staticMode) {
-      await runWorkflow('unfreeze.yml', undefined, progress);
+      await runWorkflow('unfreeze.yml', undefined, progress, (s) => {
+        s.freeze = null;
+        s.frozenToday = false;
+        // Mirror computeStreak: an unfrozen day with an unsolved member and a
+        // running streak is back at risk. Reconcile fixes it either way.
+        s.atRisk = s.streak > 0 && !s.todayComplete;
+      });
     } else {
       await api('/api/freeze', { method: 'DELETE' });
       latest = await api('/api/status');

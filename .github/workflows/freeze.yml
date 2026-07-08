@@ -1,7 +1,12 @@
 # The "Freeze streak" button: Actions tab → Freeze streak → Run workflow
-# (the dashboard links straight here). Validates the earn-it rules against
-# live LeetCode data — everyone solved today, 8+ hours before midnight —
-# then commits freeze.json and redeploys the dashboard.
+# (the dashboard links straight here, or dispatches it via the API when you
+# connect a token). Validates the earn-it rules against live LeetCode data —
+# everyone solved today, 8+ hours before midnight — then commits freeze.json
+# and redeploys the dashboard.
+#
+# Everything runs in one job so there's only a single runner startup: the
+# scheduled streak.yml still owns the hourly rebuild, but freeze/unfreeze
+# inline the same build+deploy steps to shave the second cold job.
 name: Freeze streak
 
 on:
@@ -14,10 +19,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   freeze:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,6 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - run: npm ci
 
@@ -48,11 +63,12 @@ jobs:
           git add freeze.json
           git diff --cached --quiet || { git commit -m "Freeze streak"; git push; }
 
-  publish:
-    needs: freeze
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/streak.yml
-    secrets: inherit
+      - name: Build dashboard
+        run: node build-status.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
