@@ -193,7 +193,11 @@ offers "⚡ Connect GitHub" — paste in a token once, and the Freeze/Unfreeze
 buttons run the workflows directly from the page, no trip to the Actions
 tab. (The same earn-it rules are still enforced by the workflow itself.)
 
-Creating that token, exactly:
+**Follow the walkthrough on the dashboard itself to create and paste in
+that token** — click "⚡ Connect GitHub" in the freeze card and it walks you
+through generating a fine-grained personal access token step by step,
+matching GitHub's current screens exactly, then a field to paste it into.
+The same instructions are reproduced below for reference:
 
 1. Go to [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
    (GitHub → Settings → Developer settings → Personal access tokens →
