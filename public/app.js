@@ -404,6 +404,7 @@ function render(s) {
   $('shadow-bootstrap').hidden = !(connected && !shadow);
   $('add-form').hidden = connected && !shadow;
 
+  renderConnectSection(s, connected);
   renderFreeze(s);
 
   // Member cards
@@ -431,6 +432,31 @@ function render(s) {
     'Configure in .env — see .env.example.';
 }
 
+// Top-of-page connect prompt/status — visible to every static-mode visitor
+// regardless of member count or freeze state, so a brand-new dashboard with
+// no group yet still surfaces the option instead of burying it inside a
+// card that only appears once there's a streak to manage.
+function renderConnectSection(s, connected) {
+  const section = $('connect-section');
+  section.hidden = !staticMode;
+  if (!staticMode) return;
+
+  const prompt = $('freeze-connect').querySelector('p.hint');
+  const status = $('token-status');
+  prompt.hidden = connected;
+  $('token-panel').hidden = connected || $('token-panel').hidden;
+  status.hidden = !connected;
+  if (connected) {
+    status.innerHTML =
+      '⚡ Connected to GitHub — managing members, settings, and freeze/unfreeze right from this page. <a href="#" id="token-disconnect">Disconnect</a>';
+    status.querySelector('#token-disconnect').addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem(TOKEN_KEY);
+      render(latest);
+    });
+  }
+}
+
 function renderFreeze(s) {
   const card = $('freeze-card');
   const active = $('freeze-active');
@@ -438,26 +464,11 @@ function renderFreeze(s) {
   const hint = $('freeze-hint');
   $('freeze-error').hidden = true;
 
-  // Static mirror, three tiers: connected (token pasted) gets real one-click
+  // Static mirror, two tiers: connected (token pasted) gets real one-click
   // buttons that dispatch the workflows via the GitHub API; unconnected gets
-  // deep links to the workflows' Run forms plus a "connect" offer.
+  // deep links to the workflows' Run forms.
   const connected = staticMode && Boolean(getToken());
   const interactive = !staticMode || connected;
-
-  const showConnectOffer = (visible) => {
-    $('freeze-connect').hidden = !(visible && staticMode && !connected && s.repoUrl);
-    const status = $('token-status');
-    status.hidden = !(visible && connected);
-    if (visible && connected) {
-      status.innerHTML =
-        '⚡ Connected to GitHub — one-click controls active. <a href="#" id="token-disconnect">Disconnect</a>';
-      status.querySelector('#token-disconnect').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem(TOKEN_KEY);
-        render(latest);
-      });
-    }
-  };
 
   if (s.freeze) {
     card.hidden = false;
@@ -469,7 +480,6 @@ function renderFreeze(s) {
     const unfreezeLink = $('unfreeze-link');
     unfreezeLink.hidden = !(staticMode && !connected && s.repoUrl);
     if (s.repoUrl) unfreezeLink.href = `${s.repoUrl}/actions/workflows/unfreeze.yml`;
-    showConnectOffer(true);
     return;
   }
   active.hidden = true;
@@ -486,14 +496,12 @@ function renderFreeze(s) {
     const freezeLink = $('freeze-link');
     freezeLink.hidden = !(staticMode && !connected && s.repoUrl);
     if (s.repoUrl) freezeLink.href = `${s.repoUrl}/actions/workflows/freeze.yml`;
-    showConnectOffer(true);
   } else if (s.todayComplete && !staticMode) {
     // Solved, but too late in the day to freeze — say why.
     card.hidden = false;
     offer.hidden = true;
     hint.textContent = `🧊 ${s.canFreeze?.reason ?? ''}`;
     hint.hidden = false;
-    showConnectOffer(false);
   } else {
     card.hidden = true;
   }

@@ -17,6 +17,58 @@
       <div class="hint" id="readonly-note" hidden></div>
     </header>
 
+    <section id="connect-section" hidden>
+      <div class="card" id="freeze-connect">
+        <p class="hint">⚡ <strong><a href="#" id="show-token">Connect GitHub</a></strong>
+          to manage members, settings, delivery credentials, and
+          freeze/unfreeze right from this page — no token, no problem, you
+          can also do all of this manually below and in your repo's
+          Settings.</p>
+        <div id="token-panel" hidden>
+          <p class="hint">
+            Create a
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>:
+            under <strong>Repository access</strong> choose
+            <em>Only select repositories</em> → this repo (not “Public
+            repositories” — that forces read-only). Then in the
+            <strong>Repository permissions</strong> list, set
+            <strong>three</strong> rows to <strong>Read and write</strong>:
+            <strong>Contents</strong> (commits freeze/unfreeze and, if you
+            use it, the member list, directly — so changes apply
+            instantly), <strong>Actions</strong> (nudges a faster public
+            refresh after each change), and <strong>Secrets</strong>
+            (lets this page update <code>BUDDY_CONFIG</code> and, if you
+            fill them in below, your email/text delivery credentials).
+            Leave every other row on “No access” (Metadata: Read-only adds
+            itself — that's normal). Generate, copy the
+            <code>github_pat_…</code>, paste it here. It is stored only in
+            this browser — for one-click controls on your buddy's device
+            too, they'll need their own token pasted in there (or you can
+            share yours).
+          </p>
+          <p class="hint">⚠️ This combination is broad: <strong>Contents</strong>
+            can change any non-workflow file in the repo, and
+            <strong>Secrets</strong> can silently overwrite any secret —
+            including your SMTP/Twilio credentials, which control where
+            reminders actually get sent (GitHub never lets a token, or
+            anyone, read a secret's existing value back, so this is
+            write-only exposure — a leak can't reveal past PII). Only
+            paste this into a browser/device you trust; skip it entirely
+            to keep using the deep-link buttons and Settings page instead,
+            which need no token at all. This page also loads a small
+            open-source encryption library
+            (<a href="https://doc.libsodium.org/" target="_blank" rel="noopener">libsodium</a>)
+            from a CDN the first time it needs to write a secret.</p>
+          <label>GitHub token
+            <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
+          </label>
+          <button id="token-save">Connect</button>
+          <p class="form-error" id="token-error" hidden></p>
+        </div>
+        <p class="hint" id="token-status" hidden></p>
+      </div>
+    </section>
+
     <section id="setup-card" hidden>
       <h2>👋 Set up your streak</h2>
       <div class="card">
@@ -72,53 +124,7 @@
           </div>
           <a id="freeze-link" class="btn-link" target="_blank" rel="noopener" hidden>Freeze streak → pick days, then “Run workflow”</a>
         </div>
-        <div id="freeze-connect" hidden>
-          <p class="hint">⚡ Want these to work in one click right here?
-            <a href="#" id="show-token">Connect GitHub</a></p>
-          <div id="token-panel" hidden>
-            <p class="hint">
-              Create a
-              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>:
-              under <strong>Repository access</strong> choose
-              <em>Only select repositories</em> → this repo (not “Public
-              repositories” — that forces read-only). Then in the
-              <strong>Repository permissions</strong> list, set
-              <strong>three</strong> rows to <strong>Read and write</strong>:
-              <strong>Contents</strong> (commits freeze/unfreeze and, if you
-              use it, the member list, directly — so changes apply
-              instantly), <strong>Actions</strong> (nudges a faster public
-              refresh after each change), and <strong>Secrets</strong>
-              (lets this page update <code>BUDDY_CONFIG</code> and, if you
-              fill them in below, your email/text delivery credentials).
-              Leave every other row on “No access” (Metadata: Read-only adds
-              itself — that's normal). Generate, copy the
-              <code>github_pat_…</code>, paste it here. It is stored only in
-              this browser — for one-click controls on your buddy's device
-              too, they'll need their own token pasted in there (or you can
-              share yours).
-            </p>
-            <p class="hint">⚠️ This combination is broad: <strong>Contents</strong>
-              can change any non-workflow file in the repo, and
-              <strong>Secrets</strong> can silently overwrite any secret —
-              including your SMTP/Twilio credentials, which control where
-              reminders actually get sent (GitHub never lets a token, or
-              anyone, read a secret's existing value back, so this is
-              write-only exposure — a leak can't reveal past PII). Only
-              paste this into a browser/device you trust; skip it entirely
-              to keep using the deep-link buttons and Settings page instead,
-              which need no token at all. This page also loads a small
-              open-source encryption library
-              (<a href="https://doc.libsodium.org/" target="_blank" rel="noopener">libsodium</a>)
-              from a CDN the first time it needs to write a secret.</p>
-            <label>GitHub token
-              <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
-            </label>
-            <button id="token-save">Connect</button>
-            <p class="form-error" id="token-error" hidden></p>
-          </div>
-        </div>
-        <p class="hint" id="token-status" hidden></p>
-        <p class="hint" id="freeze-hint" hidden></p>
+        <p class="hint" id="freeze-hint" hidden>
         <p class="form-error" id="freeze-error" hidden></p>
       </div>
       <p class="hint" id="solo-hint" hidden>
