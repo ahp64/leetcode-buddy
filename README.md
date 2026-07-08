@@ -216,6 +216,24 @@ Scoped this way, the token can only trigger and read workflow runs on this
 one repo — it can't touch code, secrets, or any other repository, so even
 the worst-case leak from your browser is somebody toggling your freeze.
 
+**This token lives only in the browser you paste it into** (localStorage —
+never synced, never sent anywhere, never stored in the repo). One-click
+freeze/unfreeze on someone else's device or browser needs its own token
+there too:
+
+- **Your buddy wants one-click controls?** Either they generate their own
+  token (they'll need to be added as a repo **collaborator** first — Settings
+  → Collaborators — since a fine-grained token can only cover repos you have
+  access to), or you send them yours to paste in. Generating separate tokens
+  per person is the better habit, since each is independently revocable if
+  someone changes phones or you want to cut off access later.
+- **Using the dashboard on your own phone and laptop?** Same token can go in
+  both, or generate one per device — your call.
+- Without a token pasted in on a given browser, the Freeze/Unfreeze buttons
+  there just fall back to deep-linking to GitHub's "Run workflow" form,
+  which always works and needs no token — so this step is purely a
+  convenience upgrade, never required.
+
 ## Running locally (optional, for developers)
 
 The same app runs as a local server with a full management UI (add people
