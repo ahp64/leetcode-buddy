@@ -13,9 +13,9 @@ A shared accountability streak for you and your buddy (or a whole group).
 - Earned a break? **Freeze the streak** for a few days — allowed only while
   today is already solved with at least 8 hours to spare.
 - **Runs entirely on GitHub, for free** — nothing to install, no server to
-  keep running. GitHub checks the streak every hour, sends the reminders,
-  and hosts the dashboard page. The whole group is configured with **one
-  secret**.
+  keep running. GitHub checks the streak every 15 minutes, sends the
+  reminders, and hosts the dashboard page. The whole group is configured
+  with **one secret**.
 
 ## Set it up (10 minutes, all in the browser)
 
@@ -107,7 +107,7 @@ anywhere).
    go ahead and enable them"*, click it (fresh template copies start with
    workflows off).
 4. In the left sidebar click **Streak check & dashboard** → **Run workflow**
-   to do the first run now (afterwards it runs itself every hour).
+   to do the first run now (afterwards it runs itself every 15 minutes).
 
 Your dashboard is at `https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/` —
 it shows the streak, everyone's status today, and links back to the secret
@@ -153,8 +153,9 @@ run → expand "Send reminders" to see exactly what it did.
 - **A run failed (red X)** — click it and read the log; the errors are
   written to be understood (malformed `BUDDY_CONFIG` JSON, wrong SMTP
   password, …).
-- **Reminders arrive a bit late** — GitHub's scheduler can lag up to ~15
-  minutes past the hour. Normal.
+- **Reminders arrive a bit late** — GitHub's scheduler can lag by several
+  minutes (more under high platform load, which can also skip a run
+  outright — the next one 15 minutes later catches it). Normal.
 - **Everything stopped after ~2 months** — GitHub pauses schedules after 60
   days with no repo activity. Open the Actions tab and click the banner's
   re-enable button (any commit also resets the clock).

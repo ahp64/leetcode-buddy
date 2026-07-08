@@ -1,16 +1,19 @@
-# Hourly streak check: rebuilds the GitHub Pages dashboard every run, and
-# sends reminders when the current hour (in the group's timezone) is one of
-# the reminder hours in config.json — remind.js --if-scheduled makes that
-# call, so UTC/DST conversion never needs to live in this file.
+# Streak check every 15 minutes: rebuilds the GitHub Pages dashboard every
+# run, and sends reminders when the current hour (in the group's timezone)
+# is one of the reminder hours in config.json — remind.js --if-scheduled
+# makes that call, so UTC/DST conversion never needs to live in this file.
 #
-# Caveats of GitHub's scheduler: runs can lag the cron time by ~15 minutes,
-# and schedules are paused automatically after 60 days without repo activity
-# (re-enable from the Actions tab or push a commit).
+# Caveats of GitHub's scheduler: runs can lag the cron time by several
+# minutes (more under high platform load, when GitHub may also skip a
+# run), and schedules are paused automatically after 60 days without repo
+# activity (re-enable from the Actions tab or push a commit). 15 minutes
+# is a deliberate choice above GitHub's 5-minute floor, which is throttled
+# more aggressively.
 name: Streak check & dashboard
 
 on:
   schedule:
-    - cron: '7 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
