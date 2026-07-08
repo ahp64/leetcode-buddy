@@ -51,8 +51,12 @@ A **secret** is a value stored with your repo that only your own workflows
 can read — it never appears in code or on the dashboard, even though the
 repo is public.
 
-1. In your repo: **Settings** tab → **Secrets and variables** → **Actions**
-   → green **New repository secret** button.
+1. In your repo: **Settings** tab → **Secrets and variables** → **Actions**.
+   You'll land on a page with tabs for **Repository secrets** and
+   **Environment secrets** — use **Repository secrets** (once GitHub Pages
+   is on, it auto-creates a `github-pages` environment, which is what the
+   *Environment secrets* tab is for; that's not what you want here). Click
+   the green **New repository secret** button on the Repository secrets tab.
 2. Name: `BUDDY_CONFIG`
 3. Value: copy this and edit it for your group (keep every quote and brace):
 
