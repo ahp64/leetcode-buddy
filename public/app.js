@@ -206,6 +206,18 @@ function render(s) {
     note.innerHTML = `Updated ${age}${manage}`;
   }
 
+  // No group configured yet: walk the visitor through setup right here,
+  // instead of leaving them at an empty page with only a small link.
+  const needsSetup = staticMode && s.members.length === 0;
+  $('setup-card').hidden = !needsSetup;
+  if (needsSetup && s.repoUrl) {
+    $('setup-secrets-link').href = `${s.repoUrl}/settings/secrets/actions`;
+    $('setup-run-link').href = `${s.repoUrl}/actions/workflows/streak.yml`;
+    $('setup-readme-link').href = `${s.repoUrl}#readme`;
+  }
+  // The regular member-list empty state only applies once a group exists.
+  $('members-section').hidden = needsSetup;
+
   renderFreeze(s);
 
   // Member cards

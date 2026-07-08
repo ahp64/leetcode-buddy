@@ -17,6 +17,37 @@
       <div class="hint" id="readonly-note" hidden></div>
     </header>
 
+    <section id="setup-card" hidden>
+      <h2>👋 Set up your streak</h2>
+      <div class="card">
+        <p>This dashboard has no group configured yet. Everything —
+          members, timezone, reminders — is set with <strong>one secret</strong>
+          on your repo:</p>
+        <ol>
+          <li>Open <a id="setup-secrets-link" href="#" target="_blank" rel="noopener">Settings → Secrets and variables → Actions</a>
+            and add (or edit) a secret named <code>BUDDY_CONFIG</code>.</li>
+          <li>Paste in a value shaped like this, with real LeetCode
+            usernames — add a member per person:
+            <pre id="setup-example"><code>{
+  "settings": { "timezone": "America/Chicago", "reminderHours": [12, 18, 21] },
+  "members": [
+    { "name": "You", "leetcodeUsername": "your-leetcode-username",
+      "email": "you@example.com", "notifyEmail": true },
+    { "name": "Buddy", "leetcodeUsername": "their-leetcode-username",
+      "email": "buddy@example.com", "notifyEmail": true }
+  ]
+}</code></pre>
+          </li>
+          <li>Run the dashboard workflow once to pick it up:
+            <a id="setup-run-link" href="#" target="_blank" rel="noopener">Actions → Streak check &amp; dashboard → Run workflow</a>
+            (it also runs itself automatically every 15 minutes).</li>
+        </ol>
+        <p class="hint">Full walkthrough, including reminder delivery
+          (email/text) and freezing: see the
+          <a id="setup-readme-link" href="#" target="_blank" rel="noopener">README</a>.</p>
+      </div>
+    </section>
+
     <section id="members-section">
       <h2>Today <span class="date" id="today-date"></span></h2>
       <div id="members"></div>
