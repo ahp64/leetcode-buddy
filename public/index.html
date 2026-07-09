@@ -20,45 +20,22 @@
     <section id="connect-section" hidden>
       <div class="card" id="freeze-connect">
         <p class="hint">⚡ <strong><a href="#" id="show-token">Connect GitHub</a></strong>
-          to manage members, settings, delivery credentials, and
-          freeze/unfreeze right from this page — no token, no problem, you
-          can also do all of this manually below and in your repo's
-          Settings.</p>
+          to set up and manage everything right from this page (or skip it
+          and do it all manually in your repo's Settings instead).</p>
         <div id="token-panel" hidden>
           <p class="hint">
-            Create a
-            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>:
-            under <strong>Repository access</strong> choose
-            <em>Only select repositories</em> → this repo (not “Public
-            repositories” — that forces read-only). Then in the
-            <strong>Repository permissions</strong> list, set
-            <strong>three</strong> rows to <strong>Read and write</strong>:
-            <strong>Contents</strong> (commits freeze/unfreeze and, if you
-            use it, the member list, directly — so changes apply
-            instantly), <strong>Actions</strong> (nudges a faster public
-            refresh after each change), and <strong>Secrets</strong>
-            (lets this page update <code>BUDDY_CONFIG</code> and, if you
-            fill them in below, your email/text delivery credentials).
-            Leave every other row on “No access” (Metadata: Read-only adds
-            itself — that's normal). Generate, copy the
-            <code>github_pat_…</code>, paste it here. It is stored only in
-            this browser — for one-click controls on your buddy's device
-            too, they'll need their own token pasted in there (or you can
-            share yours).
-          </p>
-          <p class="hint">⚠️ This combination is broad: <strong>Contents</strong>
-            can change any non-workflow file in the repo, and
-            <strong>Secrets</strong> can silently overwrite any secret —
-            including your SMTP/Twilio credentials, which control where
-            reminders actually get sent (GitHub never lets a token, or
-            anyone, read a secret's existing value back, so this is
-            write-only exposure — a leak can't reveal past PII). Only
-            paste this into a browser/device you trust; skip it entirely
-            to keep using the deep-link buttons and Settings page instead,
-            which need no token at all. This page also loads a small
-            open-source encryption library
-            (<a href="https://doc.libsodium.org/" target="_blank" rel="noopener">libsodium</a>)
-            from a CDN the first time it needs to write a secret.</p>
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained token</a>:
+            <strong>Repository access</strong> → <em>Only select
+            repositories</em> → this repo. Then under
+            <strong>Repository permissions</strong>, set
+            <strong>Contents</strong>, <strong>Actions</strong>, and
+            <strong>Secrets</strong> to <strong>Read and write</strong>
+            (everything else stays "No access"). Generate, copy the
+            <code>github_pat_…</code>, paste it below. It's stored only in
+            this browser — a leaked token could change repo files or
+            secrets (never old values, those can't be read back), so only
+            use a browser you trust, and use a separate token per
+            person/device.</p>
           <label>GitHub token
             <input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" />
           </label>
@@ -69,20 +46,41 @@
       </div>
     </section>
 
+    <section id="delivery-section" hidden>
+      <h2>Reminders</h2>
+      <div class="card">
+        <p>This is what actually pings people when they're slacking —
+          without it, reminders only get logged, nobody gets pinged.</p>
+        <p class="hint"><strong>Email</strong> (e.g. a Gmail app password):</p>
+        <div class="grid">
+          <label>SMTP host <input id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" /></label>
+          <label>SMTP port <input id="smtp-port" placeholder="587" autocomplete="off" /></label>
+          <label>SMTP user <input id="smtp-user" placeholder="you@gmail.com" autocomplete="off" /></label>
+          <label>SMTP password <input id="smtp-pass" type="password" placeholder="app password" autocomplete="off" /></label>
+          <label>From address <input id="smtp-from" placeholder="you@gmail.com" autocomplete="off" /></label>
+        </div>
+        <p class="hint"><strong>Text</strong> (via Twilio):</p>
+        <div class="grid">
+          <label>Account SID <input id="twilio-sid" placeholder="AC…" autocomplete="off" /></label>
+          <label>Auth token <input id="twilio-token" type="password" autocomplete="off" /></label>
+          <label>From number <input id="twilio-from" placeholder="+1555…" autocomplete="off" /></label>
+        </div>
+        <button id="save-credentials">Save credentials</button>
+        <p class="hint">Fields left blank are untouched — fill in email,
+          text, or both.</p>
+        <p class="form-error" id="credentials-msg" hidden></p>
+      </div>
+    </section>
+
     <section id="setup-card" hidden>
       <h2>👋 Set up your streak</h2>
       <div class="card">
-        <p>This dashboard has no group configured yet. Everything —
-          members, timezone, reminders — is set with <strong>one secret</strong>
-          on your repo:</p>
+        <p>Everything — members, timezone, reminders — is set with
+          <strong>one secret</strong> on your repo:</p>
         <ol>
-          <li>Open <a id="setup-secrets-link" href="#" target="_blank" rel="noopener">Settings → Secrets and variables → Actions</a>.
-            On the <strong>Repository secrets</strong> tab (not
-            <em>Environment secrets</em> — that's a separate tab for the
-            auto-created <code>github-pages</code> environment) add or edit
-            a secret named <code>BUDDY_CONFIG</code>.</li>
-          <li>Paste in a value shaped like this, with real LeetCode
-            usernames — add a member per person:
+          <li>Open <a id="setup-secrets-link" href="#" target="_blank" rel="noopener">Settings → Secrets and variables → Actions</a>
+            → <strong>Repository secrets</strong> tab → add a secret named
+            <code>BUDDY_CONFIG</code>:
             <pre id="setup-example"><code>{
   "settings": { "timezone": "America/Chicago", "reminderHours": [12, 18, 21] },
   "members": [
@@ -93,13 +91,14 @@
   ]
 }</code></pre>
           </li>
+          <li>Add reminders too, so people actually get pinged — same
+            place, secrets named <code>SMTP_HOST</code>/<code>SMTP_PORT</code>/<code>SMTP_USER</code>/<code>SMTP_PASS</code>/<code>SMTP_FROM</code>
+            for email and/or <code>TWILIO_ACCOUNT_SID</code>/<code>TWILIO_AUTH_TOKEN</code>/<code>TWILIO_FROM</code>
+            for text. Details in the <a id="setup-readme-link" href="#" target="_blank" rel="noopener">README</a>.</li>
           <li>Run the dashboard workflow once to pick it up:
             <a id="setup-run-link" href="#" target="_blank" rel="noopener">Actions → Streak check &amp; dashboard → Run workflow</a>
             (it also runs itself automatically every 15 minutes).</li>
         </ol>
-        <p class="hint">Full walkthrough, including reminder delivery
-          (email/text) and freezing: see the
-          <a id="setup-readme-link" href="#" target="_blank" rel="noopener">README</a>.</p>
       </div>
     </section>
 
@@ -178,7 +177,7 @@
     </section>
 
     <section id="settings-section">
-      <h2>Reminders &amp; settings</h2>
+      <h2>Settings</h2>
       <div class="card" id="settings-card">
         <p class="channel-status" id="channel-status"></p>
         <div class="grid">
@@ -194,33 +193,6 @@
           <button id="remind-now" class="secondary">Send reminders now</button>
         </div>
         <p class="form-error" id="settings-msg" hidden></p>
-      </div>
-    </section>
-
-    <section id="delivery-section" hidden>
-      <h2>Delivery credentials</h2>
-      <div class="card">
-        <p class="hint">Optional — lets reminders actually send instead of
-          only logging. These write straight to the matching repo secrets;
-          fields left blank are untouched (existing values, if any, keep
-          working — this page can't show you what's already set, since
-          secrets can't be read back).</p>
-        <p class="hint"><strong>Email</strong> (e.g. a Gmail app password):</p>
-        <div class="grid">
-          <label>SMTP host <input id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" /></label>
-          <label>SMTP port <input id="smtp-port" placeholder="587" autocomplete="off" /></label>
-          <label>SMTP user <input id="smtp-user" placeholder="you@gmail.com" autocomplete="off" /></label>
-          <label>SMTP password <input id="smtp-pass" type="password" placeholder="app password" autocomplete="off" /></label>
-          <label>From address <input id="smtp-from" placeholder="you@gmail.com" autocomplete="off" /></label>
-        </div>
-        <p class="hint"><strong>Text</strong> (via Twilio):</p>
-        <div class="grid">
-          <label>Account SID <input id="twilio-sid" placeholder="AC…" autocomplete="off" /></label>
-          <label>Auth token <input id="twilio-token" type="password" autocomplete="off" /></label>
-          <label>From number <input id="twilio-from" placeholder="+1555…" autocomplete="off" /></label>
-        </div>
-        <button id="save-credentials">Save credentials</button>
-        <p class="form-error" id="credentials-msg" hidden></p>
       </div>
     </section>
   </main>
