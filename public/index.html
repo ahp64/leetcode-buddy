@@ -149,6 +149,12 @@
         </div>
         <p class="form-error" id="bootstrap-error" hidden></p>
       </div>
+      <p class="form-error" id="shadow-drift-warning" hidden>
+        ⚠️ Your saved copy of BUDDY_CONFIG doesn't match who's actually
+        listed above — probably edited elsewhere since you last loaded it
+        here. Re-paste the current value in the box above before
+        adding/editing/removing, or changes may not apply correctly.
+      </p>
       <form id="add-form" class="card">
         <div class="grid">
           <label>LeetCode username *
@@ -191,7 +197,11 @@
         <div class="settings-actions">
           <button id="save-settings">Save settings</button>
           <button id="remind-now" class="secondary">Send reminders now</button>
+          <button id="test-notify-btn" class="secondary">Send test message</button>
         </div>
+        <p class="hint">Test message ignores solve status — sends to
+          everyone with email/text reminders toggled on, to check
+          SMTP/Twilio actually work.</p>
         <p class="form-error" id="settings-msg" hidden></p>
       </div>
     </section>

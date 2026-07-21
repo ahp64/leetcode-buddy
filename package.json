@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "remind": "node remind.js",
+    "test-notify": "node test-notify.js",
     "build-status": "node build-status.js",
     "sync-config": "gh secret set BUDDY_CONFIG < data/db.json",
     "test": "node --test test/"

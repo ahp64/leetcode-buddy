@@ -8,7 +8,7 @@ import {
   FREEZE_MAX_DAYS,
 } from './lib/status.js';
 import { userExists } from './lib/leetcode.js';
-import { startScheduler, sendReminders } from './lib/scheduler.js';
+import { startScheduler, sendReminders, sendTestNotifications } from './lib/scheduler.js';
 import { isValidTimeZone, dayKey, addDays } from './lib/time.js';
 
 const app = express();
@@ -129,6 +129,14 @@ app.delete('/api/freeze', (req, res) => {
 app.post('/api/remind-now', async (req, res) => {
   try {
     res.json(await sendReminders(store, { fresh: true }));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/test-notify', async (req, res) => {
+  try {
+    res.json(await sendTestNotifications(store));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

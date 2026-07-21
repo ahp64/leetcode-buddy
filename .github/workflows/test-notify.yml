@@ -1,0 +1,44 @@
+# The "Send test message" button on the dashboard (or Actions tab → Test
+# reminders → Run workflow). Sends a clearly-marked test email/text to
+# everyone with reminders toggled on, ignoring solve status — for checking
+# that SMTP/Twilio secrets are actually configured correctly. Doesn't touch
+# the dashboard or freeze state, so no build/deploy step.
+name: Test reminders
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Restore config from secret
+        env:
+          BUDDY_CONFIG: ${{ secrets.BUDDY_CONFIG }}
+        run: |
+          mkdir -p data
+          [ -n "$BUDDY_CONFIG" ] && printf '%s' "$BUDDY_CONFIG" > data/db.json || true
+
+      - name: Send test message
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+        run: node test-notify.js

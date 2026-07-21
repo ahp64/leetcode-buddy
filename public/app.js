@@ -240,7 +240,7 @@ function nudgeRebuild() {
 // GitHub Pages' CDN, which can take another 10–40s to serve the rebuilt
 // status.json. A background reconcile picks up the authoritative copy once
 // the CDN catches up.
-async function runWorkflow(file, inputs, progress, optimistic) {
+async function dispatchAndAwaitWorkflow(file, inputs, progress) {
   const startedAt = Date.now();
   progress('Asking GitHub…');
   await gh(`/actions/workflows/${file}/dispatches`, {
@@ -248,7 +248,7 @@ async function runWorkflow(file, inputs, progress, optimistic) {
     body: JSON.stringify(inputs ? { ref: 'main', inputs } : { ref: 'main' }),
   });
 
-  progress('GitHub is applying it…');
+  progress('GitHub is running it…');
   let run = null;
   const deadline = Date.now() + 5 * 60 * 1000;
   while (Date.now() < deadline) {
@@ -263,10 +263,18 @@ async function runWorkflow(file, inputs, progress, optimistic) {
     throw new Error('GitHub is taking unusually long — check the Actions tab for the result.');
   }
   if (run.conclusion !== 'success') {
-    throw new Error(`GitHub refused the change (see the log: ${run.html_url})`);
+    throw new Error(`GitHub run failed — check the log: ${run.html_url}`);
   }
+  return run;
+}
 
-  // Run succeeded → reflect the new state now; reconcile with the CDN later.
+// Freeze/unfreeze specifically: once the run succeeds the new state is
+// known, so we reflect it immediately (via `optimistic`) rather than
+// blocking on GitHub Pages' CDN, which can take another 10–40s to serve the
+// rebuilt status.json. A background reconcile picks up the authoritative
+// copy once the CDN catches up.
+async function runWorkflow(file, inputs, progress, optimistic) {
+  await dispatchAndAwaitWorkflow(file, inputs, progress);
   optimistic?.(latest);
   reconcileFromCdn(latest.generatedAt);
 }
@@ -403,6 +411,20 @@ function render(s) {
   const shadow = connected ? getShadowConfig() : null;
   $('shadow-bootstrap').hidden = !(connected && !shadow);
   $('add-form').hidden = connected && !shadow;
+
+  // Surface a stale shadow proactively instead of only failing per-click:
+  // BUDDY_CONFIG can change outside this browser (Settings, another
+  // device, or a workflow), and the shadow has no way to notice on its own.
+  if (shadow) {
+    const shadowNames = new Set(shadow.members.map((m) => m.leetcodeUsername.toLowerCase()));
+    const liveNames = new Set(s.members.map((m) => m.leetcodeUsername.toLowerCase()));
+    const inSync =
+      shadowNames.size === liveNames.size &&
+      [...shadowNames].every((n) => liveNames.has(n));
+    $('shadow-drift-warning').hidden = inSync;
+  } else {
+    $('shadow-drift-warning').hidden = true;
+  }
 
   renderConnectSection(s, connected);
   renderFreeze(s);
@@ -597,11 +619,17 @@ function memberCard(m) {
   el.querySelector('.remove').addEventListener('click', async () => {
     if (!confirm(`Remove ${m.name} from the streak?`)) return;
     if (staticMode) {
-      const shadow = getShadowConfig();
-      if (!shadow) return alert('Load your existing BUDDY_CONFIG above first.');
+      // Must actually find the member in the shadow first — filtering blind
+      // silently no-ops on a desynced shadow and still writes the (stale,
+      // unchanged) copy back over BUDDY_CONFIG, which can revert other
+      // real changes. findInShadow() alerts if it's missing.
+      const found = findInShadow();
+      if (!found) return;
       const config = {
-        ...shadow,
-        members: shadow.members.filter((sm) => sm.leetcodeUsername.toLowerCase() !== m.id),
+        ...found.shadow,
+        members: found.shadow.members.filter(
+          (sm) => sm.leetcodeUsername.toLowerCase() !== m.id
+        ),
       };
       try {
         await saveShadowConfig(config, `Remove ${m.name}`);
@@ -894,6 +922,35 @@ $('save-settings').addEventListener('click', async () => {
     msg.textContent = err.message;
     msg.className = 'form-error';
     msg.hidden = false;
+  }
+});
+
+$('test-notify-btn').addEventListener('click', async () => {
+  const msg = $('settings-msg');
+  const btn = $('test-notify-btn');
+  btn.disabled = true;
+  msg.hidden = true;
+  try {
+    let result;
+    if (staticMode) {
+      const progress = (text) => {
+        msg.textContent = text;
+        msg.className = 'form-error progress';
+        msg.hidden = false;
+      };
+      const run = await dispatchAndAwaitWorkflow('test-notify.yml', undefined, progress);
+      result = { message: `Test message workflow finished — check the run log for details: ${run.html_url}` };
+    } else {
+      result = await api('/api/test-notify', { method: 'POST' });
+    }
+    msg.textContent = result.message;
+    msg.className = 'form-error ok';
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = 'form-error';
+  } finally {
+    msg.hidden = false;
+    btn.disabled = false;
   }
 });
 
