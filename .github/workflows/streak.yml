@@ -68,6 +68,9 @@ jobs:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_CONTENT_SID_SELF: ${{ secrets.TWILIO_CONTENT_SID_SELF }}
+          TWILIO_CONTENT_SID_BUDDY: ${{ secrets.TWILIO_CONTENT_SID_BUDDY }}
+          TWILIO_CONTENT_SID_TEST: ${{ secrets.TWILIO_CONTENT_SID_TEST }}
         run: node remind.js --if-scheduled
 
       - name: Build dashboard

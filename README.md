@@ -80,6 +80,37 @@ get a number, grab your Account SID and Auth Token):
 Fill in either or both. To change any of this later, come back and paste a
 new value — GitHub never shows the old one, so keep a copy somewhere.
 
+**If you're on a Twilio trial account**, plain text messages get rejected
+with a `572006` error — trial accounts can only send pre-approved
+**Content Templates**, not freeform text. (Paid accounts can skip this
+entirely.) To fix it:
+
+1. In the Twilio Console, go to **Messaging → Content Editor** → **Create
+   new** → **Text** (a plain SMS template, not WhatsApp).
+2. Create three templates with exactly this body text each (the `{{1}}`
+   etc. are Twilio's placeholder syntax — leave them as-is):
+
+   | Template name | Body |
+   |---|---|
+   | `leetcode-buddy-self` | `Hey {{1}} — no accepted LeetCode submission from you yet today. {{2}} https://leetcode.com/problemset/` |
+   | `leetcode-buddy-buddy` | `Hey {{1}} — you already solved today, but {{2}} hasn't. {{3}} Maybe give them a nudge.` |
+   | `leetcode-buddy-test` | `🧪 LeetCode Buddy Streak — test message. Text reminders are set up correctly!` (no placeholders) |
+
+3. Submit/save each — for plain SMS this is typically immediate, no review
+   wait (unlike WhatsApp templates).
+4. Copy each template's **Content SID** (starts with `HX`) and add as
+   secrets:
+
+   | Secret | Value |
+   |---|---|
+   | `TWILIO_CONTENT_SID_SELF` | SID of `leetcode-buddy-self` |
+   | `TWILIO_CONTENT_SID_BUDDY` | SID of `leetcode-buddy-buddy` |
+   | `TWILIO_CONTENT_SID_TEST` | SID of `leetcode-buddy-test` |
+
+Only set the ones you created — any left blank just falls back to the
+plain-text send (fine on a paid account, will keep 572006-ing on a trial
+one until all three are set).
+
 ### Step 3 — Turn on the dashboard
 
 1. **Settings → Pages** → set **Source** to **GitHub Actions**.
