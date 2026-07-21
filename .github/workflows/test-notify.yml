@@ -1,8 +1,8 @@
 # The "Send test message" button on the dashboard (or Actions tab → Test
-# reminders → Run workflow). Sends a clearly-marked test email/text to
+# reminders → Run workflow). Sends a clearly-marked test email/ntfy push to
 # everyone with reminders toggled on, ignoring solve status — for checking
-# that SMTP/Twilio secrets are actually configured correctly. Doesn't touch
-# the dashboard or freeze state, so no build/deploy step.
+# that the SMTP secret is actually configured correctly. Doesn't touch the
+# dashboard or freeze state, so no build/deploy step.
 name: Test reminders
 
 on:
@@ -38,7 +38,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
         run: node test-notify.js

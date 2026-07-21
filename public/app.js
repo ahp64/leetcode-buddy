@@ -121,7 +121,7 @@ async function writeSecret(name, plaintext) {
 // Secrets can never be read back via the API, so editing members/settings
 // from this page requires this browser to hold its own working copy — the
 // dashboard's public status.json only ever has names/usernames, never
-// emails/phones. On first use in a browser, the existing BUDDY_CONFIG value
+// emails/ntfy topics. On first use in a browser, the existing BUDDY_CONFIG value
 // has to be pasted in once to seed this; after that, edits made here keep it
 // in sync. If BUDDY_CONFIG is ever edited elsewhere (Settings, another
 // device), re-paste it here to pick up that change before editing again.
@@ -148,7 +148,6 @@ function mergeOptimisticMembers(members) {
       name: m.name,
       leetcodeUsername: m.leetcodeUsername,
       notifyEmail: Boolean(m.notifyEmail),
-      notifySms: Boolean(m.notifySms),
       notifyNtfy: Boolean(m.notifyNtfy),
       solvedToday: prev?.solvedToday ?? false,
       solvedCountToday: prev?.solvedCountToday ?? 0,
@@ -451,9 +450,8 @@ function render(s) {
   }
   $('channel-status').textContent =
     `Delivery channels — email: ${s.channels.email ? 'configured ✅' : 'not configured (logs to server console)'}, ` +
-    `text: ${s.channels.sms ? 'configured ✅' : 'not configured (logs to server console)'}, ` +
     `ntfy: always available (no setup needed, just a per-person topic). ` +
-    'Configure email/text in .env — see .env.example.';
+    'Configure email in .env — see .env.example.';
 }
 
 // Top-of-page connect prompt/status — visible to every static-mode visitor
@@ -560,7 +558,6 @@ function memberCard(m) {
     ? ''
     : `<div class="controls">
         <label class="toggle"><input type="checkbox" data-field="notifyEmail" ${m.notifyEmail ? 'checked' : ''}/> email</label>
-        <label class="toggle"><input type="checkbox" data-field="notifySms" ${m.notifySms ? 'checked' : ''}/> text</label>
         <label class="toggle"><input type="checkbox" data-field="notifyNtfy" ${m.notifyNtfy ? 'checked' : ''}/> ntfy</label>
         <button class="remove">remove</button>
       </div>`;
@@ -682,10 +679,8 @@ $('add-form').addEventListener('submit', async (e) => {
         name: (data.name ?? '').trim() || username,
         leetcodeUsername: username,
         email: (data.email ?? '').trim(),
-        phone: (data.phone ?? '').trim(),
         ntfyTopic: (data.ntfyTopic ?? '').trim(),
         notifyEmail: form.notifyEmail.checked,
-        notifySms: form.notifySms.checked,
         notifyNtfy: form.notifyNtfy.checked,
       };
       const config = { ...shadow, members: [...shadow.members, member] };
@@ -693,7 +688,6 @@ $('add-form').addEventListener('submit', async (e) => {
     } else {
       btn.textContent = 'Checking LeetCode…';
       data.notifyEmail = form.notifyEmail.checked;
-      data.notifySms = form.notifySms.checked;
       data.notifyNtfy = form.notifyNtfy.checked;
       await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
       latest = await api('/api/status');
@@ -847,25 +841,13 @@ $('bootstrap-fresh').addEventListener('click', () => {
 $('save-credentials').addEventListener('click', async () => {
   const msg = $('credentials-msg');
   const btn = $('save-credentials');
-  const fieldIds = [
-    'smtp-host',
-    'smtp-port',
-    'smtp-user',
-    'smtp-pass',
-    'smtp-from',
-    'twilio-sid',
-    'twilio-token',
-    'twilio-from',
-  ];
+  const fieldIds = ['smtp-host', 'smtp-port', 'smtp-user', 'smtp-pass', 'smtp-from'];
   const secretNames = {
     'smtp-host': 'SMTP_HOST',
     'smtp-port': 'SMTP_PORT',
     'smtp-user': 'SMTP_USER',
     'smtp-pass': 'SMTP_PASS',
     'smtp-from': 'SMTP_FROM',
-    'twilio-sid': 'TWILIO_ACCOUNT_SID',
-    'twilio-token': 'TWILIO_AUTH_TOKEN',
-    'twilio-from': 'TWILIO_FROM',
   };
   const toWrite = fieldIds
     .map((id) => [id, $(id).value.trim()])

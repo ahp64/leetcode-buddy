@@ -1,15 +1,24 @@
 // Builds the static, read-only dashboard for GitHub Pages into dist/:
-// a copy of public/ plus a sanitized status.json snapshot. Emails, phone
-// numbers, member ids, and notification toggles are deliberately stripped —
-// everything published here is already public on leetcode.com.
+// a copy of public/ plus a sanitized status.json snapshot. Emails, ntfy
+// topics, and notification toggles are deliberately stripped — everything
+// published here is already public on leetcode.com.
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createStore } from './lib/store.js';
 import { getGroupStatus } from './lib/status.js';
+import { congratsForStatus } from './lib/scheduler.js';
 
 const store = createStore();
 const status = await getGroupStatus(store, { fresh: true });
+
+// Reuses the fetch above rather than polling LeetCode again — this runs on
+// every scheduled dashboard build (every 15 min in hosted mode), so it's
+// what actually catches "first check that sees today's solve."
+const congrats = await congratsForStatus(store, status);
+if (congrats.congratulated.length > 0) {
+  console.log(`Congratulated: ${congrats.congratulated.join(', ')}`);
+}
 
 const publicStatus = {
   readOnly: true,

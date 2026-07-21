@@ -59,15 +59,10 @@
           <label>SMTP password <input id="smtp-pass" type="password" placeholder="app password" autocomplete="off" /></label>
           <label>From address <input id="smtp-from" placeholder="you@gmail.com" autocomplete="off" /></label>
         </div>
-        <p class="hint"><strong>Text</strong> (via Twilio):</p>
-        <div class="grid">
-          <label>Account SID <input id="twilio-sid" placeholder="AC…" autocomplete="off" /></label>
-          <label>Auth token <input id="twilio-token" type="password" autocomplete="off" /></label>
-          <label>From number <input id="twilio-from" placeholder="+1555…" autocomplete="off" /></label>
-        </div>
         <button id="save-credentials">Save credentials</button>
-        <p class="hint">Fields left blank are untouched — fill in email,
-          text, or both.</p>
+        <p class="hint">Fields left blank are untouched. Push notifications
+          (ntfy) need no secret here at all — set each person's topic in
+          the roster above.</p>
         <p class="form-error" id="credentials-msg" hidden></p>
       </div>
     </section>
@@ -92,10 +87,11 @@
   ]
 }</code></pre>
           </li>
-          <li>Add reminders too, so people actually get pinged — same
-            place, secrets named <code>SMTP_HOST</code>/<code>SMTP_PORT</code>/<code>SMTP_USER</code>/<code>SMTP_PASS</code>/<code>SMTP_FROM</code>
-            for email and/or <code>TWILIO_ACCOUNT_SID</code>/<code>TWILIO_AUTH_TOKEN</code>/<code>TWILIO_FROM</code>
-            for text. Details in the <a id="setup-readme-link" href="#" target="_blank" rel="noopener">README</a>.</li>
+          <li>Add email delivery too, so people actually get pinged — same
+            place, secrets named <code>SMTP_HOST</code>/<code>SMTP_PORT</code>/<code>SMTP_USER</code>/<code>SMTP_PASS</code>/<code>SMTP_FROM</code>.
+            Push notifications (ntfy) need no secret — set each person's
+            topic right in the roster above. Details in the
+            <a id="setup-readme-link" href="#" target="_blank" rel="noopener">README</a>.</li>
           <li>Run the dashboard workflow once to pick it up:
             <a id="setup-run-link" href="#" target="_blank" rel="noopener">Actions → Streak check &amp; dashboard → Run workflow</a>
             (it also runs itself automatically every 15 minutes).</li>
@@ -167,16 +163,12 @@
           <label>Email
             <input name="email" type="email" placeholder="for email reminders" />
           </label>
-          <label>Phone
-            <input name="phone" type="tel" placeholder="+1555… for text reminders" />
-          </label>
           <label>ntfy topic
             <input name="ntfyTopic" placeholder="e.g. leetcode-buddy-x7k2p9" autocomplete="off" />
           </label>
         </div>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" name="notifyEmail" checked /> Email reminders</label>
-          <label class="toggle"><input type="checkbox" name="notifySms" /> Text reminders</label>
           <label class="toggle"><input type="checkbox" name="notifyNtfy" /> ntfy reminders</label>
         </div>
         <p class="hint">ntfy is a free push-notification app — no signup, no
@@ -210,8 +202,8 @@
           <button id="test-notify-btn" class="secondary">Send test message</button>
         </div>
         <p class="hint">Test message ignores solve status — sends to
-          everyone with email/text reminders toggled on, to check
-          SMTP/Twilio actually work.</p>
+          everyone with email/ntfy reminders toggled on, to check delivery
+          actually works.</p>
         <p class="form-error" id="settings-msg" hidden></p>
       </div>
     </section>

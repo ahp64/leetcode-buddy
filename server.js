@@ -26,7 +26,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/members', async (req, res) => {
-  const { name, leetcodeUsername, email, phone, ntfyTopic, notifyEmail, notifySms, notifyNtfy } =
+  const { name, leetcodeUsername, email, ntfyTopic, notifyEmail, notifyNtfy } =
     req.body ?? {};
   if (!leetcodeUsername?.trim()) {
     return res.status(400).json({ error: 'LeetCode username is required.' });
@@ -52,24 +52,20 @@ app.post('/api/members', async (req, res) => {
     name: name?.trim() || username,
     leetcodeUsername: username,
     email,
-    phone,
     ntfyTopic,
     notifyEmail,
-    notifySms,
     notifyNtfy,
   });
   res.status(201).json(member);
 });
 
 app.patch('/api/members/:id', (req, res) => {
-  const { name, email, phone, ntfyTopic, notifyEmail, notifySms, notifyNtfy } = req.body ?? {};
+  const { name, email, ntfyTopic, notifyEmail, notifyNtfy } = req.body ?? {};
   const member = store.updateMember(req.params.id, {
     name,
     email,
-    phone,
     ntfyTopic,
     notifyEmail,
-    notifySms,
     notifyNtfy,
   });
   if (!member) return res.status(404).json({ error: 'Member not found.' });

@@ -8,9 +8,10 @@ A shared accountability streak for you and your buddy (or a whole group).
   self-reported.
 - A live dashboard shows whether each person solved today, who's slacking,
   and the shared streak count.
-- Slackers get reminded by **email, text, and/or free push notification**
+- Slackers get reminded by **email and/or free push notification**
   (per-person toggles), and buddies who already solved get a "your buddy is
-  slacking" heads-up.
+  slacking" heads-up. Solve today and you'll get a **"nice work!" message**
+  the first time a check notices it.
 - Earned a break? **Freeze the streak** for a few days — allowed only while
   today is already solved with at least 8 hours to spare.
 - **Runs entirely on GitHub, for free** — nothing to install, no server to
@@ -26,9 +27,9 @@ command line — every step below is clicking around github.com.
 
 Click the green **Use this template** button above → **Create a new
 repository**. Give it any name and leave it **Public** — GitHub Pages, the
-free hosting this uses, requires it. Your emails/phone numbers never end up
-in the repo itself; they live in a **secret**, which nobody but your own
-repo's workflows can read.
+free hosting this uses, requires it. Your email never ends up in the repo
+itself; it lives in a **secret**, which nobody but your own repo's
+workflows can read.
 
 ### Step 2 — Configure your group and reminders
 
@@ -58,8 +59,8 @@ way — the streak then requires *all* of you. `ntfyTopic`/`notifyNtfy` are
 for free push notifications, covered below.
 
 **2. Add reminder delivery — do this too, it's what actually pings people.**
-Without it, reminders only get written into a log nobody sees. Three
-options, mix and match per person:
+Without it, reminders only get written into a log nobody sees. Two options,
+mix and match per person:
 
 - **Push notifications, via [ntfy](https://ntfy.sh)** — free, no account,
   no secret, and the easiest to set up. Each person picks a made-up "topic"
@@ -73,15 +74,13 @@ options, mix and match per person:
   add secrets `SMTP_HOST` (`smtp.gmail.com`), `SMTP_PORT` (`587`),
   `SMTP_USER` and `SMTP_FROM` (your Gmail address), and `SMTP_PASS` (the
   app password).
-- **Text, via [Twilio](https://www.twilio.com/)** — requires a **paid**
-  Twilio account; the free trial rejects freeform SMS and can't create the
-  templates that would fix that without upgrading first, so there's no way
-  to make it work on a trial. Add secrets `TWILIO_ACCOUNT_SID` (starts with
-  `AC`), `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM` (your Twilio number).
 
 Fill in whichever you want, including just ntfy — it needs no secret at
-all. To change any secret later, come back and paste a new value; GitHub
-never shows the old one, so keep a copy somewhere.
+all. (Texting via Twilio isn't supported — its free trial rejects
+freeform SMS and only works with pre-approved templates you can't create
+without upgrading off the trial first, so there's no way to make it work
+without paying.) To change any secret later, come back and paste a new
+value; GitHub never shows the old one, so keep a copy somewhere.
 
 ### Step 3 — Turn on the dashboard
 
@@ -112,6 +111,9 @@ Your dashboard is `https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/`.
   everyone has solved; until then it shows as ⚠️ at risk.
 - Each check backfills the last 30 days from members' recent accepted
   submissions, so missed runs don't lose history.
+- The first check that sees you've solved today sends a "nice work!"
+  message (same channels as reminders) — a one-time pat on the back, not
+  repeated on every later check that day.
 
 ### Freezing the streak
 
@@ -163,12 +165,14 @@ npm install
 npm start        # http://localhost:3000
 ```
 
-All state lives in `data/db.json` (gitignored — same shape as the
-`BUDDY_CONFIG` secret). Push your local config to your GitHub instance with
-`npm run sync-config` (needs the [GitHub CLI](https://cli.github.com/)).
-Reminder credentials go in `.env` — see [.env.example](.env.example). While
-the server runs it schedules reminders itself; `npm run remind` does a
-one-shot check for your own cron.
+Members/settings live in `data/db.json` (gitignored — same shape as the
+`BUDDY_CONFIG` secret); freeze state and daily history live in the
+committed `freeze.json`/`history.json`. Push your local config to your
+GitHub instance with `npm run sync-config` (needs the
+[GitHub CLI](https://cli.github.com/)). Reminder credentials go in `.env`
+— see [.env.example](.env.example). While the server runs it schedules
+reminders (and congrats) itself; `npm run remind` does a one-shot reminder
+check for your own cron.
 
 ## Tests
 
