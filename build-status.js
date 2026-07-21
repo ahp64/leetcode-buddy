@@ -27,6 +27,11 @@ const publicStatus = {
   frozenToday: status.frozenToday,
   canFreeze: status.canFreeze,
   members: status.members.map((m) => ({
+    // id is just leetcodeUsername lowercased — already public via the
+    // profile link below, so including it isn't a privacy leak, and the
+    // hosted page's edit/remove flow needs it to match members against the
+    // browser's local shadow copy of BUDDY_CONFIG.
+    id: m.id,
     name: m.name,
     leetcodeUsername: m.leetcodeUsername,
     solvedToday: m.solvedToday,
