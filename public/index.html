@@ -85,7 +85,8 @@
   "settings": { "timezone": "America/Chicago", "reminderHours": [12, 18, 21] },
   "members": [
     { "name": "You", "leetcodeUsername": "your-leetcode-username",
-      "email": "you@example.com", "notifyEmail": true },
+      "email": "you@example.com", "notifyEmail": true,
+      "ntfyTopic": "leetcode-buddy-x7k2p9", "notifyNtfy": true },
     { "name": "Buddy", "leetcodeUsername": "their-leetcode-username",
       "email": "buddy@example.com", "notifyEmail": true }
   ]
@@ -169,11 +170,20 @@
           <label>Phone
             <input name="phone" type="tel" placeholder="+1555… for text reminders" />
           </label>
+          <label>ntfy topic
+            <input name="ntfyTopic" placeholder="e.g. leetcode-buddy-x7k2p9" autocomplete="off" />
+          </label>
         </div>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" name="notifyEmail" checked /> Email reminders</label>
           <label class="toggle"><input type="checkbox" name="notifySms" /> Text reminders</label>
+          <label class="toggle"><input type="checkbox" name="notifyNtfy" /> ntfy reminders</label>
         </div>
+        <p class="hint">ntfy is a free push-notification app — no signup, no
+          cost, ever. Pick a made-up topic name (long and random so nobody
+          else can guess it), install the
+          <a href="https://ntfy.sh/#subscribe" target="_blank" rel="noopener">ntfy app</a>,
+          and subscribe to that same name to receive reminders.</p>
         <button type="submit" id="add-btn">Add to streak</button>
         <p class="hint" id="add-cors-hint" hidden>Note: this page can't verify
           the LeetCode username is real (the browser can't reach

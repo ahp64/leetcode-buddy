@@ -149,6 +149,7 @@ function mergeOptimisticMembers(members) {
       leetcodeUsername: m.leetcodeUsername,
       notifyEmail: Boolean(m.notifyEmail),
       notifySms: Boolean(m.notifySms),
+      notifyNtfy: Boolean(m.notifyNtfy),
       solvedToday: prev?.solvedToday ?? false,
       solvedCountToday: prev?.solvedCountToday ?? 0,
       lastSolve: prev?.lastSolve ?? null,
@@ -450,8 +451,9 @@ function render(s) {
   }
   $('channel-status').textContent =
     `Delivery channels — email: ${s.channels.email ? 'configured ✅' : 'not configured (logs to server console)'}, ` +
-    `text: ${s.channels.sms ? 'configured ✅' : 'not configured (logs to server console)'}. ` +
-    'Configure in .env — see .env.example.';
+    `text: ${s.channels.sms ? 'configured ✅' : 'not configured (logs to server console)'}, ` +
+    `ntfy: always available (no setup needed, just a per-person topic). ` +
+    'Configure email/text in .env — see .env.example.';
 }
 
 // Top-of-page connect prompt/status — visible to every static-mode visitor
@@ -559,6 +561,7 @@ function memberCard(m) {
     : `<div class="controls">
         <label class="toggle"><input type="checkbox" data-field="notifyEmail" ${m.notifyEmail ? 'checked' : ''}/> email</label>
         <label class="toggle"><input type="checkbox" data-field="notifySms" ${m.notifySms ? 'checked' : ''}/> text</label>
+        <label class="toggle"><input type="checkbox" data-field="notifyNtfy" ${m.notifyNtfy ? 'checked' : ''}/> ntfy</label>
         <button class="remove">remove</button>
       </div>`;
   el.innerHTML = `
@@ -680,8 +683,10 @@ $('add-form').addEventListener('submit', async (e) => {
         leetcodeUsername: username,
         email: (data.email ?? '').trim(),
         phone: (data.phone ?? '').trim(),
+        ntfyTopic: (data.ntfyTopic ?? '').trim(),
         notifyEmail: form.notifyEmail.checked,
         notifySms: form.notifySms.checked,
+        notifyNtfy: form.notifyNtfy.checked,
       };
       const config = { ...shadow, members: [...shadow.members, member] };
       await saveShadowConfig(config, `Add ${username}`);
@@ -689,6 +694,7 @@ $('add-form').addEventListener('submit', async (e) => {
       btn.textContent = 'Checking LeetCode…';
       data.notifyEmail = form.notifyEmail.checked;
       data.notifySms = form.notifySms.checked;
+      data.notifyNtfy = form.notifyNtfy.checked;
       await api('/api/members', { method: 'POST', body: JSON.stringify(data) });
       latest = await api('/api/status');
     }

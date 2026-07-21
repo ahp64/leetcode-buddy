@@ -42,7 +42,8 @@ Repository secrets tab → New repository secret**.
   "settings": { "timezone": "America/Chicago", "reminderHours": [12, 18, 21] },
   "members": [
     { "name": "You", "leetcodeUsername": "your-leetcode-username",
-      "email": "you@gmail.com", "notifyEmail": true },
+      "email": "you@gmail.com", "notifyEmail": true,
+      "ntfyTopic": "leetcode-buddy-x7k2p9", "notifyNtfy": true },
     { "name": "Your buddy", "leetcodeUsername": "their-leetcode-username",
       "email": "buddy@gmail.com", "notifyEmail": true }
   ]
@@ -52,10 +53,21 @@ Repository secrets tab → New repository secret**.
 `timezone` sets what counts as "today" (pick yours from
 [this list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)).
 `reminderHours` is when slackers get pinged. Add a third member the same
-way — the streak then requires *all* of you.
+way — the streak then requires *all* of you. `ntfyTopic`/`notifyNtfy` are
+for free push notifications — see below, no account or secret needed for
+this one at all.
 
 **2. Add reminder delivery — do this too, it's what actually pings people.**
-Without it, reminders only get written into a log nobody sees.
+Without it, reminders only get written into a log nobody sees. Three
+options, mix and match per person:
+
+**Free push notifications, via [ntfy](https://ntfy.sh)** — no account, no
+secret, no cost, ever, and the easiest to set up. Each person picks a
+made-up "topic" name (long and random, since it doubles as the shared
+secret — anyone who knows it can read/post to it), puts it in their
+`ntfyTopic` field above with `notifyNtfy: true`, and installs the
+[ntfy app](https://ntfy.sh/#subscribe) (iOS/Android/desktop), subscribing
+to that same topic name. That's the entire setup.
 
 Email, via a Gmail app password (create one at
 [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)):
@@ -77,8 +89,9 @@ get a number, grab your Account SID and Auth Token):
 | `TWILIO_AUTH_TOKEN` | your Auth Token |
 | `TWILIO_FROM` | your Twilio number |
 
-Fill in either or both. To change any of this later, come back and paste a
-new value — GitHub never shows the old one, so keep a copy somewhere.
+Fill in whichever you want (including none — ntfy needs no secret at all).
+To change any secret later, come back and paste a new value — GitHub never
+shows the old one, so keep a copy somewhere.
 
 **If you're on a Twilio trial account**, plain text messages get rejected
 with a `572006` error — trial accounts can only send pre-approved
