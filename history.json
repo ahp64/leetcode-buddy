@@ -357,6 +357,14 @@
       },
       "remindersSent": {},
       "congratsSent": {}
+    },
+    "2026-08-01": {
+      "complete": false,
+      "solved": {
+        "ahp64": false
+      },
+      "remindersSent": {},
+      "congratsSent": {}
     }
   }
 }
