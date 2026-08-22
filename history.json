@@ -547,7 +547,9 @@
       "solved": {
         "ahp64": false
       },
-      "remindersSent": {},
+      "remindersSent": {
+        "21": true
+      },
       "congratsSent": {}
     }
   }
